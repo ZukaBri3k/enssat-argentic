@@ -24,4 +24,9 @@ public record PrestationFacturee(
         @Column(name = "photographe_nom", nullable = false, length = 150)
         String nomPhotographe
 ) {
+
+    public static PrestationFacturee depuis(Seance seance) {
+        return new PrestationFacturee(seance.getDate(), seance.getHeureDebut(), seance.getDureeMinutes(),
+                seance.getSpecialite().getLibelle(), seance.getPhotographe().getNom());
+    }
 }
