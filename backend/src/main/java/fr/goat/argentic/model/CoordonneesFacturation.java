@@ -18,4 +18,9 @@ public record CoordonneesFacturation(
         @Column(name = "client_numero_siren_tva", length = 32)
         String numeroSirenTva
 ) {
+
+    public static CoordonneesFacturation depuis(Client client) {
+        String sirenTva = client instanceof ClientEntreprise entreprise ? entreprise.getNumeroSirenTva() : null;
+        return new CoordonneesFacturation(client.getIdentite(), client.getAdressePostale(), client.getEmail(), sirenTva);
+    }
 }
