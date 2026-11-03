@@ -1,0 +1,20 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: argentic-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: photo_studio
+      MYSQL_ROOT_PASSWORD: ton_mot_de_passe
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pton_mot_de_passe"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql-data:
