@@ -1,5 +1,13 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { apiGetMe, apiLogin, type User } from "@/lib/api";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  apiGetMe,
+  apiLogin,
+  clearStoredToken,
+  getStoredToken,
+  setOnUnauthorizedListener,
+  setStoredToken,
+  type User,
+} from "@/lib/api";
 
 interface AuthContextType {
   user: User | null;
@@ -12,12 +20,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = "argentic_token";
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const [token, setToken] = useState<string | null>(() => getStoredToken());
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const logout = useCallback(() => {
+    clearStoredToken();
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  // Écouteur global 401 du client API centralisé
+  useEffect(() => {
+    setOnUnauthorizedListener(() => {
+      logout();
+    });
+    return () => setOnUnauthorizedListener(null);
+  }, [logout]);
 
   useEffect(() => {
     async function loadUser() {
@@ -31,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(userData);
       } catch (err) {
         console.error("Impossible de récupérer l'utilisateur courant :", err);
-        localStorage.removeItem(TOKEN_KEY);
+        clearStoredToken();
         setToken(null);
         setUser(null);
       } finally {
@@ -46,19 +66,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       const response = await apiLogin(email, motDePasse);
-      localStorage.setItem(TOKEN_KEY, response.token);
+      setStoredToken(response.token);
       setToken(response.token);
       const currentUser = await apiGetMe(response.token);
       setUser(currentUser);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
   };
 
   return (
@@ -77,11 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error("useAuth doit être utilisé dans un AuthProvider");
   }
   return context;
 }
