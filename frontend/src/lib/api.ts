@@ -76,3 +76,33 @@ export async function apiGetMe(token: string): Promise<User> {
 
   return handleResponse<User>(response);
 }
+
+export interface Specialite {
+  id: number;
+  libelle: string;
+}
+
+export async function apiGetSpecialites(token: string): Promise<Specialite[]> {
+  const response = await fetch(`${API_URL}/specialites`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+
+  return handleResponse<Specialite[]>(response);
+}
+
+export async function apiGetStatsPing(token: string): Promise<{ status: string }> {
+  const response = await fetch(`${API_URL}/stats/ping`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+
+  return handleResponse<{ status: string }>(response);
+}
+

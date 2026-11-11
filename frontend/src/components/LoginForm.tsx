@@ -25,8 +25,10 @@ import {
   LogOut,
   Copy,
   Check,
+  ExternalLink,
+  Play,
 } from "lucide-react";
-import { ApiError } from "@/lib/api";
+import { ApiError, API_URL, apiGetSpecialites, apiGetStatsPing } from "@/lib/api";
 
 export function LoginForm() {
   const { user, token, isAuthenticated, login, logout, isLoading: authLoading } = useAuth();
@@ -37,6 +39,12 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [apiTestResult, setApiTestResult] = useState<{
+    route: string;
+    status: number;
+    ok: boolean;
+    data: string;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +88,35 @@ export function LoginForm() {
     navigator.clipboard.writeText(token);
     setCopiedToken(true);
     setTimeout(() => setCopiedToken(false), 2000);
+  };
+
+  const testRoute = async (route: string, fn: () => Promise<unknown>) => {
+    setApiTestResult(null);
+    try {
+      const res = await fn();
+      setApiTestResult({
+        route,
+        status: 200,
+        ok: true,
+        data: JSON.stringify(res, null, 2),
+      });
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setApiTestResult({
+          route,
+          status: err.status,
+          ok: false,
+          data: JSON.stringify(err.problem ?? { error: err.message }, null, 2),
+        });
+      } else {
+        setApiTestResult({
+          route,
+          status: 500,
+          ok: false,
+          data: err instanceof Error ? err.message : "Erreur réseau",
+        });
+      }
+    }
   };
 
   // État connecté : afficher le profil et l'accès
@@ -130,29 +167,86 @@ export function LoginForm() {
             </div>
 
             {token && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="font-medium">Token JWT (Bearer HMAC)</span>
-                  <button
-                    type="button"
-                    onClick={handleCopyToken}
-                    className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer"
-                  >
-                    {copiedToken ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-green-600">Copié</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Copier</span>
-                      </>
-                    )}
-                  </button>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="font-medium">Tester les routes API du Backend ({API_URL})</span>
+                    <a
+                      href={`${API_URL}/swagger-ui/index.html`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <span>Swagger UI</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="text-xs cursor-pointer flex items-center gap-1.5"
+                      onClick={() => testRoute("GET /specialites", () => apiGetSpecialites(token))}
+                    >
+                      <Play className="w-3 h-3" />
+                      GET /specialites
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="text-xs cursor-pointer flex items-center gap-1.5"
+                      onClick={() => testRoute("GET /stats/ping", () => apiGetStatsPing(token))}
+                    >
+                      <Play className="w-3 h-3" />
+                      GET /stats/ping
+                    </Button>
+                  </div>
+
+                  {apiTestResult && (
+                    <div
+                      className={`p-2.5 rounded-lg border text-xs font-mono space-y-1 ${
+                        apiTestResult.ok
+                          ? "bg-green-500/10 border-green-500/30 text-green-700 dark:text-green-300"
+                          : "bg-destructive/10 border-destructive/30 text-destructive"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-sans font-semibold">
+                        <span>{apiTestResult.route}</span>
+                        <span>HTTP {apiTestResult.status}</span>
+                      </div>
+                      <pre className="text-[11px] overflow-x-auto whitespace-pre-wrap max-h-32">
+                        {apiTestResult.data}
+                      </pre>
+                    </div>
+                  )}
                 </div>
-                <div className="p-2 rounded bg-muted/40 border border-border text-[11px] font-mono text-muted-foreground break-all select-all max-h-20 overflow-y-auto">
-                  {token}
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="font-medium">Token JWT (Bearer HMAC)</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyToken}
+                      className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer"
+                    >
+                      {copiedToken ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-green-600" />
+                          <span className="text-green-600">Copié</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copier</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="p-2 rounded bg-muted/40 border border-border text-[11px] font-mono text-muted-foreground break-all select-all max-h-20 overflow-y-auto">
+                    {token}
+                  </div>
                 </div>
               </div>
             )}
@@ -162,7 +256,10 @@ export function LoginForm() {
             <Button
               variant="outline"
               className="w-full flex items-center justify-center gap-2 cursor-pointer"
-              onClick={logout}
+              onClick={() => {
+                setApiTestResult(null);
+                logout();
+              }}
             >
               <LogOut className="w-4 h-4" />
               Se déconnecter

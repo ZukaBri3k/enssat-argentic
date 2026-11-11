@@ -1,7 +1,10 @@
 package fr.goat.argentic.exception;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
@@ -10,7 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.net.URI;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
@@ -34,15 +37,39 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Erreur de validation");
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Erreur de validation des données");
         problem.setTitle("Données invalides");
         problem.setType(URI.create("urn:problem-type:bad-request"));
 
-        Map<String, String> errors = new HashMap<>();
+        Map<String, String> errors = new LinkedHashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            errors.put(error.getField(), error.getDefaultMessage());
+            errors.putIfAbsent(error.getField(), error.getDefaultMessage());
         }
         problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleConstraintViolationException(ConstraintViolationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Erreur de validation des paramètres");
+        problem.setTitle("Données invalides");
+        problem.setType(URI.create("urn:problem-type:bad-request"));
+
+        Map<String, String> errors = new LinkedHashMap<>();
+        for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+            String path = violation.getPropertyPath().toString();
+            String field = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
+            errors.putIfAbsent(field, violation.getMessage());
+        }
+        problem.setProperty("errors", errors);
+        return problem;
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Corps de la requête illisible ou mal formé");
+        problem.setTitle("Requête invalide");
+        problem.setType(URI.create("urn:problem-type:bad-request"));
         return problem;
     }
 

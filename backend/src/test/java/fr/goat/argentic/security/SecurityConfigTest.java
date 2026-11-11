@@ -75,4 +75,16 @@ class SecurityConfigTest {
                 .extracting(GrantedAuthority::getAuthority)
                 .contains("ROLE_SECRETAIRE");
     }
+
+    @Test
+    @DisplayName("CORS lit l'origine autorisée depuis la propriété configurée")
+    void corsConfigurationSource_litOriginesDepuisProperty() {
+        ReflectionTestUtils.setField(securityConfig, "allowedOrigins", "http://localhost:5173, https://argentic.fr");
+        var source = securityConfig.corsConfigurationSource();
+        var config = source.getCorsConfiguration(new org.springframework.mock.web.MockHttpServletRequest("GET", "/specialites"));
+
+        assertThat(config).isNotNull();
+        assertThat(config.getAllowedOrigins()).containsExactly("http://localhost:5173", "https://argentic.fr");
+        assertThat(config.getAllowCredentials()).isTrue();
+    }
 }
