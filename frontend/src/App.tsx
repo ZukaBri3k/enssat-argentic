@@ -1,28 +1,91 @@
 import "./App.css";
+import { BrowserRouter, Navigate, useLocation } from "@/lib/router";
+import { ToastProvider } from "@/components/shared/ToastProvider";
 import { AuthProvider } from "@/context/AuthContext";
-import { LoginForm } from "@/components/LoginForm";
+import { ProtectedRoute } from "@/components/shared/ProtectedRoute";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { LoginPage } from "@/pages/LoginPage";
+import { PhotographesPage } from "@/pages/PhotographesPage";
+import { ClientsPage } from "@/pages/ClientsPage";
+import { SeancesPage } from "@/pages/SeancesPage";
+import { FacturesPage } from "@/pages/FacturesPage";
+import { StatistiquesPage } from "@/pages/StatistiquesPage";
+
+function AppRoutes() {
+  const { pathname } = useLocation();
+
+  if (pathname === "/login") {
+    return <LoginPage />;
+  }
+
+  if (pathname === "/") {
+    return <Navigate to="/photographes" replace />;
+  }
+
+  if (pathname === "/photographes") {
+    return (
+      <ProtectedRoute>
+        <AppLayout>
+          <PhotographesPage />
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/clients") {
+    return (
+      <ProtectedRoute>
+        <AppLayout>
+          <ClientsPage />
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/seances") {
+    return (
+      <ProtectedRoute>
+        <AppLayout>
+          <SeancesPage />
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/factures") {
+    return (
+      <ProtectedRoute>
+        <AppLayout>
+          <FacturesPage />
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  if (pathname === "/statistiques" || pathname === "/stats") {
+    return (
+      <ProtectedRoute>
+        <AppLayout>
+          <ProtectedRoute requiredRole="GESTIONNAIRE">
+            <StatistiquesPage />
+          </ProtectedRoute>
+        </AppLayout>
+      </ProtectedRoute>
+    );
+  }
+
+  return <Navigate to="/photographes" replace />;
+}
 
 function App() {
   return (
-    <AuthProvider>
-      <div className="min-h-screen w-full flex flex-col justify-between p-4 md:p-8 bg-gradient-to-b from-background via-muted/30 to-background">
-        <header className="w-full max-w-5xl mx-auto flex items-center justify-between py-2">
-          <div className="flex items-center gap-2 text-foreground font-semibold tracking-tight">
-            <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block"></span>
-            <span>Studio Argentic</span>
-          </div>
-          <span className="text-xs text-muted-foreground font-mono">v1.0.0</span>
-        </header>
-
-        <main className="w-full flex items-center justify-center py-6">
-          <LoginForm />
-        </main>
-
-        <footer className="w-full max-w-5xl mx-auto text-center py-4 text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Studio Argentic — Plateforme de gestion de studio photographique
-        </footer>
-      </div>
-    </AuthProvider>
+    <BrowserRouter>
+      <ToastProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ToastProvider>
+    </BrowserRouter>
   );
 }
 
