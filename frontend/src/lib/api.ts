@@ -27,6 +27,85 @@ export interface Specialite {
   libelle: string;
 }
 
+export type StatutSeance = "PLANIFIEE" | "CONFIRMEE" | "TERMINEE" | "ANNULEE";
+
+export type StatutPaiement = "EN_ATTENTE" | "PAYEE" | "ANNULEE";
+
+export type TypeClient = "PARTICULIER" | "ENTREPRISE";
+
+export interface PhotographeSummary {
+  id: number;
+  nom: string;
+  email?: string;
+  actif?: boolean;
+  specialites?: Specialite[];
+}
+
+export interface ClientSummary {
+  id: number;
+  identite?: string;
+  nom?: string;
+  prenom?: string;
+  raisonSociale?: string;
+  numeroSirenTva?: string;
+  email?: string;
+  adressePostale?: string;
+  typeClient?: TypeClient;
+  type?: TypeClient;
+}
+
+export interface FactureSummary {
+  id: number;
+  numero: string;
+  dateEmission?: string;
+  montantHt?: number;
+  tauxTva?: number;
+  montantTtc?: number;
+  statutPaiement?: StatutPaiement;
+  statut?: StatutPaiement;
+  datePaiement?: string | null;
+}
+
+export interface SeanceResponse {
+  id: number;
+  date?: string;
+  dateSeance?: string;
+  heureDebut?: string;
+  dureeMinutes?: number;
+  duree?: number;
+  debut?: string;
+  fin?: string;
+  heureFin?: string;
+  dateFin?: string;
+  lieu: string;
+  statut: StatutSeance;
+  photographe?: PhotographeSummary;
+  photographeId?: number;
+  photographeNom?: string;
+  photographeEmail?: string;
+  client?: ClientSummary;
+  clientId?: number;
+  clientIdentite?: string;
+  clientNom?: string;
+  clientEmail?: string;
+  specialite?: Specialite;
+  specialiteId?: number;
+  specialiteLibelle?: string;
+  typeSeance?: string;
+  facture?: FactureSummary | null;
+  factureId?: number | null;
+  factureNumero?: string | null;
+  factureStatut?: StatutPaiement | null;
+}
+
+export interface SeanceFilters {
+  du?: string;
+  au?: string;
+  photographeId?: number | string;
+  clientId?: number | string;
+  statut?: StatutSeance | "";
+}
+
 export interface TopPhotographeSeances {
   photographeId?: number;
   id?: number;
@@ -224,4 +303,46 @@ export async function apiGetChiffreAffaires(
 ): Promise<ChiffreAffairesResponse> {
   const params = new URLSearchParams({ du, au });
   return api.get<ChiffreAffairesResponse>(`/stats/chiffre-affaires?${params.toString()}`);
+}
+
+// Endpoints Séances & Planning
+export async function apiGetSeances(filters: SeanceFilters = {}): Promise<SeanceResponse[]> {
+  const params = new URLSearchParams();
+  if (filters.du) {
+    params.set("du", filters.du);
+  }
+  if (filters.au) {
+    params.set("au", filters.au);
+  }
+  if (filters.photographeId !== undefined && filters.photographeId !== "") {
+    const idStr = String(filters.photographeId);
+    params.set("idPhotographe", idStr);
+    params.set("photographeId", idStr);
+    params.set("photographe", idStr);
+  }
+  if (filters.clientId !== undefined && filters.clientId !== "") {
+    const idStr = String(filters.clientId);
+    params.set("idClient", idStr);
+    params.set("clientId", idStr);
+    params.set("client", idStr);
+  }
+  if (filters.statut) {
+    params.set("statutSeance", filters.statut);
+    params.set("statut", filters.statut);
+  }
+  const query = params.toString();
+  return api.get<SeanceResponse[]>(query ? `/seances?${query}` : "/seances");
+}
+
+export async function apiGetSeanceById(id: number): Promise<SeanceResponse> {
+  return api.get<SeanceResponse>(`/seances/${id}`);
+}
+
+// Endpoints Photographes & Clients (pour les listes déroulantes de filtre)
+export async function apiGetPhotographes(): Promise<PhotographeSummary[]> {
+  return api.get<PhotographeSummary[]>("/photographes");
+}
+
+export async function apiGetClients(): Promise<ClientSummary[]> {
+  return api.get<ClientSummary[]>("/clients");
 }
