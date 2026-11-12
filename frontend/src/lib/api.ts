@@ -27,6 +27,37 @@ export interface Specialite {
   libelle: string;
 }
 
+export interface TopPhotographeSeances {
+  photographeId?: number;
+  id?: number;
+  nom: string;
+  email?: string;
+  nombreSeances: number;
+}
+
+export interface TopPhotographeDuree {
+  photographeId?: number;
+  id?: number;
+  nom: string;
+  email?: string;
+  dureeTotaleMinutes?: number;
+  dureeMinutes?: number;
+  dureeCumulee?: number;
+  duree?: number;
+}
+
+export interface ChiffreAffairesResponse {
+  du?: string;
+  au?: string;
+  montantHt?: number;
+  montantTtc?: number;
+  chiffreAffairesHt?: number;
+  chiffreAffairesTtc?: number;
+  ht?: number;
+  ttc?: number;
+  nombreFactures?: number;
+}
+
 export class ApiError extends Error {
   status: number;
   problem?: ProblemDetail;
@@ -176,4 +207,21 @@ export async function apiGetSpecialites(): Promise<Specialite[]> {
 
 export async function apiGetStatsPing(): Promise<{ status: string }> {
   return api.get<{ status: string }>("/stats/ping");
+}
+
+// Endpoints Statistiques (rôle GESTIONNAIRE uniquement)
+export async function apiGetTopPhotographesSeances(): Promise<TopPhotographeSeances[]> {
+  return api.get<TopPhotographeSeances[]>("/stats/top-photographes/seances");
+}
+
+export async function apiGetTopPhotographesDuree(): Promise<TopPhotographeDuree[]> {
+  return api.get<TopPhotographeDuree[]>("/stats/top-photographes/duree");
+}
+
+export async function apiGetChiffreAffaires(
+  du: string,
+  au: string
+): Promise<ChiffreAffairesResponse> {
+  const params = new URLSearchParams({ du, au });
+  return api.get<ChiffreAffairesResponse>(`/stats/chiffre-affaires?${params.toString()}`);
 }

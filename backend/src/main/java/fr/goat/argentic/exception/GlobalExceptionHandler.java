@@ -9,8 +9,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.net.URI;
 import java.util.LinkedHashMap;
@@ -69,6 +71,26 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Corps de la requête illisible ou mal formé");
         problem.setTitle("Requête invalide");
+        problem.setType(URI.create("urn:problem-type:bad-request"));
+        return problem;
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingServletRequestParameterException(MissingServletRequestParameterException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Le paramètre obligatoire '" + ex.getParameterName() + "' est manquant"
+        );
+        problem.setTitle("Paramètre manquant");
+        problem.setType(URI.create("urn:problem-type:bad-request"));
+        return problem;
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException ex) {
+        String detail = "Le paramètre '" + ex.getName() + "' a une valeur invalide : '" + ex.getValue() + "'";
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problem.setTitle("Format de paramètre invalide");
         problem.setType(URI.create("urn:problem-type:bad-request"));
         return problem;
     }

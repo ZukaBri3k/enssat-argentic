@@ -1,12 +1,13 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
 
 interface ErrorAlertProps {
   error: unknown;
   title?: string;
+  onDismiss?: () => void;
 }
 
-export function ErrorAlert({ error, title }: ErrorAlertProps) {
+export function ErrorAlert({ error, title, onDismiss }: ErrorAlertProps) {
   if (!error) return null;
 
   let displayTitle = title;
@@ -44,6 +45,16 @@ export function ErrorAlert({ error, title }: ErrorAlertProps) {
           </ul>
         )}
       </div>
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-destructive/70 hover:text-destructive cursor-pointer shrink-0 p-0.5"
+          aria-label="Fermer l'alerte"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
