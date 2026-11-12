@@ -1,16 +1,21 @@
 package fr.goat.argentic.controller;
 
+import fr.goat.argentic.dto.ChiffreAffairesResponse;
 import fr.goat.argentic.dto.TopPhotographeDureeResponse;
 import fr.goat.argentic.dto.TopPhotographeSeancesResponse;
 import fr.goat.argentic.service.StatsService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -44,5 +49,19 @@ public class StatsController {
     )
     public ResponseEntity<List<TopPhotographeDureeResponse>> getTopPhotographesParDuree() {
         return ResponseEntity.ok(statsService.getTopPhotographesParDuree());
+    }
+
+    @GetMapping("/chiffre-affaires")
+    @Operation(
+            summary = "Chiffre d'affaires HT et TTC sur une période",
+            description = "Retourne la somme des factures au statut PAYEE dont la date de paiement est comprise entre du et au inclus."
+    )
+    public ResponseEntity<ChiffreAffairesResponse> getChiffreAffaires(
+            @Parameter(description = "Date de début (YYYY-MM-DD)", example = "2026-01-01")
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate du,
+            @Parameter(description = "Date de fin (YYYY-MM-DD)", example = "2026-12-31")
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate au
+    ) {
+        return ResponseEntity.ok(statsService.getChiffreAffaires(du, au));
     }
 }
