@@ -88,6 +88,16 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.title").value("Accès refusé"));
     }
 
+    @Test
+    @DisplayName("400 MissingServletRequestParameterException : renvoie ProblemDetail 400")
+    void missingParam_doitRetourner400ProblemDetail() throws Exception {
+        mockMvc.perform(get("/test/param"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Paramètre manquant"))
+                .andExpect(jsonPath("$.detail").value("Le paramètre obligatoire 'du' est manquant"));
+    }
+
     record DummyPayload(
             @Email(message = "Email invalide") String email,
             @NotBlank(message = "Nom obligatoire") String nom
@@ -117,5 +127,8 @@ class GlobalExceptionHandlerTest {
         public void forbidden() {
             throw new AccessDeniedException("Refusé");
         }
+
+        @GetMapping("/test/param")
+        public void param(@org.springframework.web.bind.annotation.RequestParam("du") String du) {}
     }
 }
