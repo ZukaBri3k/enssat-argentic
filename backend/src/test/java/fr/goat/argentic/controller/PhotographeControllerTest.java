@@ -1,8 +1,10 @@
 package fr.goat.argentic.controller;
 
+import fr.goat.argentic.dto.PhotographeRequest;
 import fr.goat.argentic.dto.PhotographeResponse;
 import fr.goat.argentic.dto.SpecialiteResponse;
 import fr.goat.argentic.exception.GlobalExceptionHandler;
+import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
 import fr.goat.argentic.service.PhotographeService;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,13 +13,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
+import java.util.Set;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -94,5 +103,81 @@ class PhotographeControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.detail").value("Photographe introuvable : 42"));
+    }
+
+    @Test
+    @DisplayName("POST /photographes renvoie 201, l'en-tête Location et le photographe créé")
+    void createPhotographe_donneesValides_doitRetourner201() throws Exception {
+        PhotographeRequest request = new PhotographeRequest("Camille Martin", "camille.martin@argentic.fr", Set.of(1L, 2L));
+        when(photographeService.create(request)).thenReturn(camille);
+
+        mockMvc.perform(post("/photographes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nom": "Camille Martin", "email": "camille.martin@argentic.fr", "specialiteIds": [1, 2]}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "http://localhost/photographes/1"))
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.specialites.length()").value(2));
+    }
+
+    @Test
+    @DisplayName("POST /photographes renvoie 400 avec le détail par champ si nom, email ou spécialités sont invalides")
+    void createPhotographe_donneesInvalides_doitRetourner400() throws Exception {
+        mockMvc.perform(post("/photographes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nom": " ", "email": "pas-un-email", "specialiteIds": []}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.nom").exists())
+                .andExpect(jsonPath("$.errors.email").exists())
+                .andExpect(jsonPath("$.errors.specialiteIds").value("Au moins une spécialité est requise"));
+        verifyNoInteractions(photographeService);
+    }
+
+    @Test
+    @DisplayName("POST /photographes renvoie 409 en ProblemDetail si l'email est déjà utilisé")
+    void createPhotographe_emailDejaUtilise_doitRetourner409() throws Exception {
+        when(photographeService.create(any())).thenThrow(
+                new RegleMetierException("Un photographe utilise déjà l'adresse email camille.martin@argentic.fr"));
+
+        mockMvc.perform(post("/photographes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nom": "Camille Martin", "email": "camille.martin@argentic.fr", "specialiteIds": [1]}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").value("Un photographe utilise déjà l'adresse email camille.martin@argentic.fr"));
+    }
+
+    @Test
+    @DisplayName("PUT /photographes/{id} renvoie 200 et le photographe modifié")
+    void updatePhotographe_donneesValides_doitRetourner200() throws Exception {
+        PhotographeRequest request = new PhotographeRequest("Camille Martin", "camille.martin@argentic.fr", Set.of(1L, 2L));
+        when(photographeService.update(1L, request)).thenReturn(camille);
+
+        mockMvc.perform(put("/photographes/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nom": "Camille Martin", "email": "camille.martin@argentic.fr", "specialiteIds": [1, 2]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nom").value("Camille Martin"));
+    }
+
+    @Test
+    @DisplayName("PUT /photographes/{id} renvoie 400 si aucune spécialité n'est fournie")
+    void updatePhotographe_sansSpecialite_doitRetourner400() throws Exception {
+        mockMvc.perform(put("/photographes/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nom": "Camille Martin", "email": "camille.martin@argentic.fr"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.specialiteIds").value("Au moins une spécialité est requise"));
+        verifyNoInteractions(photographeService);
     }
 }

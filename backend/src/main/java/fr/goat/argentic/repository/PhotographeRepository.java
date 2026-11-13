@@ -14,4 +14,8 @@ public interface PhotographeRepository extends JpaRepository<Photographe, Long> 
 
     @EntityGraph(attributePaths = "specialites")
     List<Photographe> findByActifOrderByNomAsc(boolean actif);
+
+    boolean existsByEmailIgnoreCase(String email);
+
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
 }

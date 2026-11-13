@@ -2,6 +2,7 @@ package fr.goat.argentic.exception;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -107,6 +108,18 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleRegleMetierException(RegleMetierException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Règle métier violée");
+        problem.setType(URI.create("urn:problem-type:conflict"));
+        return problem;
+    }
+
+    // Garde-fou : contrainte UNIQUE violée en base (ex. deux créations simultanées avec le même email)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "L'opération entre en conflit avec des données existantes (valeur déjà utilisée)"
+        );
+        problem.setTitle("Conflit de données");
         problem.setType(URI.create("urn:problem-type:conflict"));
         return problem;
     }

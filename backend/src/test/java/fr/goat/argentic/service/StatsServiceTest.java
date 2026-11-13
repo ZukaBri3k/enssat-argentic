@@ -6,6 +6,7 @@ import fr.goat.argentic.dto.TopPhotographeSeancesResponse;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.model.Facture;
 import fr.goat.argentic.model.Seance;
+import fr.goat.argentic.model.Specialite;
 import fr.goat.argentic.model.StatutPaiement;
 import fr.goat.argentic.model.StatutSeance;
 import fr.goat.argentic.repository.FactureRepository;
@@ -22,6 +23,8 @@ import org.springframework.data.repository.query.FluentQuery;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -142,6 +145,7 @@ class StatsServiceTest {
             return topDureeResult;
         }
 
+        @Override public List<Specialite> findSpecialitesAvecSeancesAVenir(Long photographeId, Collection<Long> specialiteIds, LocalDate date, LocalTime heure) { return List.of(); }
         @Override public void flush() {}
         @Override public <S extends Seance> S saveAndFlush(S entity) { return entity; }
         @Override public <S extends Seance> List<S> saveAllAndFlush(Iterable<S> entities) { return List.of(); }
