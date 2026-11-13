@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -103,8 +104,22 @@ class GlobalExceptionHandlerTest {
             @NotBlank(message = "Nom obligatoire") String nom
     ) {}
 
+    @Test
+    @DisplayName("409 DataIntegrityViolationException : une contrainte d'unicité violée en base renvoie ProblemDetail 409")
+    void dataIntegrityViolation_doitRetourner409ProblemDetail() throws Exception {
+        mockMvc.perform(get("/test/integrity"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflit de données"));
+    }
+
     @RestController
     static class DummyController {
+        @GetMapping("/test/integrity")
+        public void integrity() {
+            throw new DataIntegrityViolationException("Duplicate entry 'a@b.fr' for key 'photographe.email'");
+        }
+
         @PostMapping("/test/validation")
         public void validate(@Valid @RequestBody DummyPayload payload) {}
 

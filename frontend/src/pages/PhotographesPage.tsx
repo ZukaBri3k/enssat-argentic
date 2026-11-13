@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { apiGetPhotographe, apiGetPhotographes, type Photographe, type Specialite } from "@/lib/api";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
+import { useToast } from "@/components/shared/ToastProvider";
+import { PhotographeForm } from "@/components/photographes/PhotographeForm";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,9 +11,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2, Mail, UserSquare2, X } from "lucide-react";
+import { Loader2, Mail, Pencil, Plus, UserSquare2, X } from "lucide-react";
 
 type FiltreActif = "tous" | "actifs" | "inactifs";
+
+// Contenu du panneau latéral
+type Panneau =
+  | { mode: "detail"; id: number }
+  | { mode: "creation" }
+  | { mode: "edition"; photographe: Photographe };
 
 const FILTRES: { value: FiltreActif; label: string; actif?: boolean }[] = [
   { value: "tous", label: "Tous" },
@@ -46,7 +54,13 @@ function SpecialitesBadges({ specialites }: { specialites: Specialite[] }) {
   );
 }
 
-function PhotographeDetail({ id, onClose }: { id: number; onClose: () => void }) {
+interface PhotographeDetailProps {
+  id: number;
+  onEdit: (photographe: Photographe) => void;
+  onClose: () => void;
+}
+
+function PhotographeDetail({ id, onEdit, onClose }: PhotographeDetailProps) {
   const [photographe, setPhotographe] = useState<Photographe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -89,16 +103,30 @@ function PhotographeDetail({ id, onClose }: { id: number; onClose: () => void })
             </CardDescription>
           )}
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="cursor-pointer"
-          onClick={onClose}
-          aria-label="Fermer le détail"
-        >
-          <X />
-        </Button>
+        <div className="flex items-center gap-1">
+          {photographe && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="cursor-pointer flex items-center gap-1.5"
+              onClick={() => onEdit(photographe)}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Modifier
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="cursor-pointer"
+            onClick={onClose}
+            aria-label="Fermer le détail"
+          >
+            <X />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         {loading ? (
@@ -132,7 +160,9 @@ export function PhotographesPage() {
   const [photographes, setPhotographes] = useState<Photographe[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<unknown>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [panneau, setPanneau] = useState<Panneau | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const { success } = useToast();
 
   useEffect(() => {
     let mounted = true;
@@ -156,7 +186,18 @@ export function PhotographesPage() {
     return () => {
       mounted = false;
     };
-  }, [filtre]);
+  }, [filtre, reloadKey]);
+
+  const selectedId = panneau?.mode === "detail" ? panneau.id : null;
+
+  const handleSaved = (saved: Photographe, creation: boolean) => {
+    success(
+      creation ? "Photographe créé" : "Photographe modifié",
+      `${saved.nom} a bien été ${creation ? "créé" : "modifié"}.`
+    );
+    setReloadKey((k) => k + 1);
+    setPanneau({ mode: "detail", id: saved.id });
+  };
 
   return (
     <div className="space-y-6">
@@ -171,30 +212,42 @@ export function PhotographesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-1" role="group" aria-label="Filtrer par statut">
-          {FILTRES.map(({ value, label }) => (
-            <Button
-              key={value}
-              type="button"
-              size="sm"
-              variant={filtre === value ? "default" : "outline"}
-              className="cursor-pointer"
-              aria-pressed={filtre === value}
-              onClick={() => {
-                setFiltre(value);
-                setSelectedId(null);
-              }}
-            >
-              {label}
-            </Button>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1" role="group" aria-label="Filtrer par statut">
+            {FILTRES.map(({ value, label }) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={filtre === value ? "default" : "outline"}
+                className="cursor-pointer"
+                aria-pressed={filtre === value}
+                onClick={() => {
+                  setFiltre(value);
+                  // Un formulaire en cours de saisie reste ouvert
+                  setPanneau((courant) => (courant?.mode === "detail" ? null : courant));
+                }}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="cursor-pointer flex items-center gap-1.5"
+            onClick={() => setPanneau({ mode: "creation" })}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nouveau photographe
+          </Button>
         </div>
       </div>
 
       <ErrorAlert error={loadError} />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className={selectedId !== null ? "lg:col-span-2" : "lg:col-span-3"}>
+        <Card className={panneau !== null ? "lg:col-span-2" : "lg:col-span-3"}>
           <CardContent className="overflow-x-auto">
             {loading ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -225,7 +278,7 @@ export function PhotographesPage() {
                         <button
                           type="button"
                           className="cursor-pointer text-left hover:underline"
-                          onClick={() => setSelectedId(p.id)}
+                          onClick={() => setPanneau({ mode: "detail", id: p.id })}
                         >
                           {p.nom}
                         </button>
@@ -245,8 +298,27 @@ export function PhotographesPage() {
           </CardContent>
         </Card>
 
-        {selectedId !== null && (
-          <PhotographeDetail id={selectedId} onClose={() => setSelectedId(null)} />
+        {panneau?.mode === "detail" && (
+          <PhotographeDetail
+            id={panneau.id}
+            onEdit={(photographe) => setPanneau({ mode: "edition", photographe })}
+            onClose={() => setPanneau(null)}
+          />
+        )}
+        {panneau?.mode === "creation" && (
+          <PhotographeForm
+            key="creation"
+            onSaved={(saved) => handleSaved(saved, true)}
+            onCancel={() => setPanneau(null)}
+          />
+        )}
+        {panneau?.mode === "edition" && (
+          <PhotographeForm
+            key={`edition-${panneau.photographe.id}`}
+            photographe={panneau.photographe}
+            onSaved={(saved) => handleSaved(saved, false)}
+            onCancel={() => setPanneau({ mode: "detail", id: panneau.photographe.id })}
+          />
         )}
       </div>
     </div>
