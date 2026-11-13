@@ -2,6 +2,7 @@ package fr.goat.argentic.service;
 
 import fr.goat.argentic.dto.PhotographeRequest;
 import fr.goat.argentic.dto.PhotographeResponse;
+import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
 import fr.goat.argentic.model.Photographe;
@@ -100,7 +101,7 @@ public class PhotographeService {
                 .sorted()
                 .toList();
         if (!inconnues.isEmpty()) {
-            throw new ResourceNotFoundException("Spécialité(s) introuvable(s) : " + inconnues);
+            throw new DonneeInvalideException("specialiteIds", "Spécialité(s) introuvable(s) : " + inconnues);
         }
         return specialites;
     }
