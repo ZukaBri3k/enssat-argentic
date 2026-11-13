@@ -17,6 +17,8 @@ import java.util.List;
 
 public interface SeanceRepository extends JpaRepository<Seance, Long> {
 
+    boolean existsByPhotographeId(Long photographeId);
+
     // Parmi les spécialités données, celles pour lesquelles le photographe a une séance non annulée débutant après (date, heure)
     @Query("""
             SELECT DISTINCT s.specialite

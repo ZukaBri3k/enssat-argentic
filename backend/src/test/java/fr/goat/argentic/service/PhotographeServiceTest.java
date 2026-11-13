@@ -227,6 +227,42 @@ class PhotographeServiceTest {
                 .hasMessageContaining("42");
     }
 
+    @Test
+    @DisplayName("delete supprime le photographe s'il n'a aucune séance")
+    void delete_sansSeance_doitSupprimerLePhotographe() {
+        Photographe lucas = photographe(2L, "Lucas Bernard", "lucas.bernard@argentic.fr", true, famille);
+        when(photographeRepository.findById(2L)).thenReturn(Optional.of(lucas));
+        when(seanceRepository.existsByPhotographeId(2L)).thenReturn(false);
+
+        photographeService.delete(2L);
+
+        verify(photographeRepository).delete(lucas);
+    }
+
+    @Test
+    @DisplayName("delete lève RegleMetierException en invitant à désactiver si le photographe a des séances")
+    void delete_avecSeances_doitLeverRegleMetier() {
+        Photographe camille = photographe(1L, "Camille Martin", "camille.martin@argentic.fr", true, reportage);
+        when(photographeRepository.findById(1L)).thenReturn(Optional.of(camille));
+        when(seanceRepository.existsByPhotographeId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> photographeService.delete(1L))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("désactiv");
+        verify(photographeRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("delete lève ResourceNotFoundException si le photographe n'existe pas")
+    void delete_idInconnu_doitLeverResourceNotFound() {
+        when(photographeRepository.findById(42L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> photographeService.delete(42L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("42");
+        verify(photographeRepository, never()).delete(any());
+    }
+
     private static Specialite specialite(Long id, String libelle) {
         Specialite specialite = new Specialite(libelle);
         specialite.setId(id);
