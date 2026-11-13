@@ -2,6 +2,7 @@ package fr.goat.argentic.exception;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -9,8 +10,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.net.URI;
 import java.util.LinkedHashMap;
@@ -65,10 +68,39 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(DonneeInvalideException.class)
+    public ProblemDetail handleDonneeInvalideException(DonneeInvalideException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Données invalides");
+        problem.setType(URI.create("urn:problem-type:bad-request"));
+        problem.setProperty("errors", Map.of(ex.getChamp(), ex.getMessage()));
+        return problem;
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Corps de la requête illisible ou mal formé");
         problem.setTitle("Requête invalide");
+        problem.setType(URI.create("urn:problem-type:bad-request"));
+        return problem;
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingServletRequestParameterException(MissingServletRequestParameterException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                "Le paramètre obligatoire '" + ex.getParameterName() + "' est manquant"
+        );
+        problem.setTitle("Paramètre manquant");
+        problem.setType(URI.create("urn:problem-type:bad-request"));
+        return problem;
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException ex) {
+        String detail = "Le paramètre '" + ex.getName() + "' a une valeur invalide : '" + ex.getValue() + "'";
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problem.setTitle("Format de paramètre invalide");
         problem.setType(URI.create("urn:problem-type:bad-request"));
         return problem;
     }
@@ -85,6 +117,18 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleRegleMetierException(RegleMetierException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Règle métier violée");
+        problem.setType(URI.create("urn:problem-type:conflict"));
+        return problem;
+    }
+
+    // Garde-fou : contrainte UNIQUE violée en base (ex. deux créations simultanées avec le même email)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "L'opération entre en conflit avec des données existantes (valeur déjà utilisée)"
+        );
+        problem.setTitle("Conflit de données");
         problem.setType(URI.create("urn:problem-type:conflict"));
         return problem;
     }
