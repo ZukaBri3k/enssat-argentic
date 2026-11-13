@@ -35,6 +35,24 @@ public interface SeanceRepository extends JpaRepository<Seance, Long> {
             @Param("heure") LocalTime heure
     );
 
+    // Séances du photographe dans les statuts donnés débutant après (date, heure), client et spécialité chargés
+    @Query("""
+            SELECT s
+            FROM Seance s
+            JOIN FETCH s.client
+            JOIN FETCH s.specialite
+            WHERE s.photographe.id = :photographeId
+              AND s.statut IN :statuts
+              AND (s.date > :date OR (s.date = :date AND s.heureDebut > :heure))
+            ORDER BY s.date, s.heureDebut
+            """)
+    List<Seance> findSeancesAVenir(
+            @Param("photographeId") Long photographeId,
+            @Param("statuts") Collection<StatutSeance> statuts,
+            @Param("date") LocalDate date,
+            @Param("heure") LocalTime heure
+    );
+
     @Query("""
             SELECT new fr.goat.argentic.dto.TopPhotographeSeancesResponse(
                 s.photographe.id,

@@ -41,6 +41,19 @@ export interface PhotographeRequest {
   specialiteIds: number[];
 }
 
+export type StatutSeance = "PLANIFIEE" | "CONFIRMEE" | "TERMINEE" | "ANNULEE";
+
+// Séance qu'une désactivation du photographe annulerait
+export interface SeanceAVenir {
+  id: number;
+  debut: string;
+  fin: string;
+  lieu: string;
+  statut: StatutSeance;
+  clientIdentite: string;
+  specialite: Specialite;
+}
+
 export interface TopPhotographeSeances {
   photographeId?: number;
   id?: number;
@@ -239,6 +252,18 @@ export async function apiUpdatePhotographe(id: number, request: PhotographeReque
 
 export async function apiDeletePhotographe(id: number): Promise<void> {
   return api.delete<void>(`/photographes/${id}`);
+}
+
+export async function apiGetSeancesAVenir(id: number): Promise<SeanceAVenir[]> {
+  return api.get<SeanceAVenir[]>(`/photographes/${id}/seances-a-venir`);
+}
+
+export async function apiDesactiverPhotographe(id: number): Promise<Photographe> {
+  return api.post<Photographe>(`/photographes/${id}/desactivation`);
+}
+
+export async function apiActiverPhotographe(id: number): Promise<Photographe> {
+  return api.post<Photographe>(`/photographes/${id}/activation`);
 }
 
 export async function apiGetStatsPing(): Promise<{ status: string }> {

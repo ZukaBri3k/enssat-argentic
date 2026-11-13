@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import {
+  apiActiverPhotographe,
   apiDeletePhotographe,
+  apiDesactiverPhotographe,
   apiGetPhotographe,
   apiGetPhotographes,
+  apiGetSeancesAVenir,
   type Photographe,
+  type SeanceAVenir,
   type Specialite,
 } from "@/lib/api";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -18,7 +22,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2, Mail, Pencil, Plus, Trash2, UserSquare2, X } from "lucide-react";
+import {
+  Loader2,
+  Mail,
+  Pencil,
+  Plus,
+  Power,
+  PowerOff,
+  Trash2,
+  UserSquare2,
+  X,
+} from "lucide-react";
 
 type FiltreActif = "tous" | "actifs" | "inactifs";
 
@@ -61,20 +75,60 @@ function SpecialitesBadges({ specialites }: { specialites: Specialite[] }) {
   );
 }
 
+const FORMAT_JOUR = new Intl.DateTimeFormat("fr-FR", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+const FORMAT_HEURE = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
+function SeancesAAnnulerListe({ seances }: { seances: SeanceAVenir[] }) {
+  return (
+    <ul className="max-h-60 overflow-y-auto divide-y divide-border rounded-lg border border-border">
+      {seances.map((seance) => {
+        const debut = new Date(seance.debut);
+        return (
+          <li key={seance.id} className="px-3 py-2 space-y-0.5">
+            <div className="font-medium">
+              {FORMAT_JOUR.format(debut)}, {FORMAT_HEURE.format(debut)} –{" "}
+              {FORMAT_HEURE.format(new Date(seance.fin))}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {seance.specialite.libelle} · {seance.clientIdentite} · {seance.lieu}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 interface PhotographeDetailProps {
   id: number;
   onEdit: (photographe: Photographe) => void;
   onDeleted: (photographe: Photographe) => void;
+  onStatutChanged: (photographe: Photographe) => void;
   onClose: () => void;
 }
 
-function PhotographeDetail({ id, onEdit, onDeleted, onClose }: PhotographeDetailProps) {
+function PhotographeDetail({
+  id,
+  onEdit,
+  onDeleted,
+  onStatutChanged,
+  onClose,
+}: PhotographeDetailProps) {
   const [photographe, setPhotographe] = useState<Photographe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
+  // Séances à venir affichées dans la confirmation de désactivation (null : modale fermée)
+  const [seancesAAnnuler, setSeancesAAnnuler] = useState<SeanceAVenir[] | null>(null);
+  const [changingStatut, setChangingStatut] = useState(false);
+  const [statutError, setStatutError] = useState<unknown>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -83,6 +137,7 @@ function PhotographeDetail({ id, onEdit, onDeleted, onClose }: PhotographeDetail
       setError(null);
       setPhotographe(null);
       setDeleteError(null);
+      setStatutError(null);
       try {
         const data = await apiGetPhotographe(id);
         if (mounted) setPhotographe(data);
@@ -113,6 +168,60 @@ function PhotographeDetail({ id, onEdit, onDeleted, onClose }: PhotographeDetail
     } finally {
       setDeleting(false);
       setConfirmDelete(false);
+    }
+  };
+
+  const desactiver = async () => {
+    if (!photographe) return;
+    try {
+      const desactive = await apiDesactiverPhotographe(photographe.id);
+      setPhotographe(desactive);
+      onStatutChanged(desactive);
+    } catch (err) {
+      setStatutError(err);
+    } finally {
+      setSeancesAAnnuler(null);
+    }
+  };
+
+  // Sans séance à venir, la désactivation est immédiate ; sinon une confirmation liste les séances qui seront annulées
+  const handleDesactiver = async () => {
+    if (!photographe) return;
+    setStatutError(null);
+    setChangingStatut(true);
+    try {
+      const seances = await apiGetSeancesAVenir(photographe.id);
+      if (seances.length === 0) {
+        await desactiver();
+      } else {
+        setSeancesAAnnuler(seances);
+      }
+    } catch (err) {
+      setStatutError(err);
+    } finally {
+      setChangingStatut(false);
+    }
+  };
+
+  const handleConfirmDesactiver = async () => {
+    if (!seancesAAnnuler) return;
+    setChangingStatut(true);
+    await desactiver();
+    setChangingStatut(false);
+  };
+
+  const handleActiver = async () => {
+    if (!photographe) return;
+    setStatutError(null);
+    setChangingStatut(true);
+    try {
+      const active = await apiActiverPhotographe(photographe.id);
+      setPhotographe(active);
+      onStatutChanged(active);
+    } catch (err) {
+      setStatutError(err);
+    } finally {
+      setChangingStatut(false);
     }
   };
 
@@ -176,6 +285,11 @@ function PhotographeDetail({ id, onEdit, onDeleted, onClose }: PhotographeDetail
           title="Suppression impossible"
           onDismiss={() => setDeleteError(null)}
         />
+        <ErrorAlert
+          error={statutError}
+          title="Changement de statut impossible"
+          onDismiss={() => setStatutError(null)}
+        />
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -188,7 +302,26 @@ function PhotographeDetail({ id, onEdit, onDeleted, onClose }: PhotographeDetail
             <>
               <div className="space-y-1.5">
                 <div className="text-xs font-medium text-muted-foreground">Statut</div>
-                <StatutBadge actif={photographe.actif} />
+                <div className="flex items-center gap-2">
+                  <StatutBadge actif={photographe.actif} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="cursor-pointer flex items-center gap-1.5"
+                    disabled={changingStatut}
+                    onClick={photographe.actif ? handleDesactiver : handleActiver}
+                  >
+                    {changingStatut ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : photographe.actif ? (
+                      <PowerOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Power className="w-3.5 h-3.5" />
+                    )}
+                    {photographe.actif ? "Désactiver" : "Activer"}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <div className="text-xs font-medium text-muted-foreground">Spécialités</div>
@@ -212,6 +345,24 @@ function PhotographeDetail({ id, onEdit, onDeleted, onClose }: PhotographeDetail
         isLoading={deleting}
         onConfirm={handleDelete}
       />
+      <ConfirmDialog
+        open={seancesAAnnuler !== null}
+        onOpenChange={(open) => {
+          if (!open) setSeancesAAnnuler(null);
+        }}
+        title="Désactiver ce photographe ?"
+        description={
+          photographe && seancesAAnnuler
+            ? `${photographe.nom} a ${seancesAAnnuler.length} séance(s) à venir. Elles seront toutes annulées.`
+            : undefined
+        }
+        confirmLabel="Désactiver et annuler les séances"
+        variant="destructive"
+        isLoading={changingStatut}
+        onConfirm={handleConfirmDesactiver}
+      >
+        {seancesAAnnuler && <SeancesAAnnulerListe seances={seancesAAnnuler} />}
+      </ConfirmDialog>
     </Card>
   );
 }
@@ -258,6 +409,16 @@ export function PhotographesPage() {
     );
     setReloadKey((k) => k + 1);
     setPanneau({ mode: "detail", id: saved.id });
+  };
+
+  const handleStatutChanged = (photographe: Photographe) => {
+    success(
+      photographe.actif ? "Photographe activé" : "Photographe désactivé",
+      photographe.actif
+        ? `${photographe.nom} peut de nouveau être assigné à des séances.`
+        : `${photographe.nom} a été désactivé.`
+    );
+    setReloadKey((k) => k + 1);
   };
 
   const handleDeleted = (supprime: Photographe) => {
@@ -370,6 +531,7 @@ export function PhotographesPage() {
             id={panneau.id}
             onEdit={(photographe) => setPanneau({ mode: "edition", photographe })}
             onDeleted={handleDeleted}
+            onStatutChanged={handleStatutChanged}
             onClose={() => setPanneau(null)}
           />
         )}

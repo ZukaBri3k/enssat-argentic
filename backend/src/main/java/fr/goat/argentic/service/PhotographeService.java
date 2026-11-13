@@ -2,11 +2,14 @@ package fr.goat.argentic.service;
 
 import fr.goat.argentic.dto.PhotographeRequest;
 import fr.goat.argentic.dto.PhotographeResponse;
+import fr.goat.argentic.dto.SeanceAVenirResponse;
 import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
 import fr.goat.argentic.model.Photographe;
+import fr.goat.argentic.model.Seance;
 import fr.goat.argentic.model.Specialite;
+import fr.goat.argentic.model.StatutSeance;
 import fr.goat.argentic.repository.PhotographeRepository;
 import fr.goat.argentic.repository.SeanceRepository;
 import fr.goat.argentic.repository.SpecialiteRepository;
@@ -23,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class PhotographeService {
+
+    private static final Set<StatutSeance> STATUTS_ANNULABLES = Set.of(StatutSeance.PLANIFIEE, StatutSeance.CONFIRMEE);
 
     private final PhotographeRepository photographeRepository;
     private final SpecialiteRepository specialiteRepository;
@@ -67,6 +72,31 @@ public class PhotographeService {
         return PhotographeResponse.fromEntity(photographe);
     }
 
+    @Transactional(readOnly = true)
+    public List<SeanceAVenirResponse> findSeancesAVenir(Long id) {
+        Photographe photographe = trouverPhotographe(id);
+        return seancesAAnnulerSiDesactive(photographe).stream()
+                .map(SeanceAVenirResponse::fromEntity)
+                .toList();
+    }
+
+    // Désactivation et annulation des séances à venir dans la même transaction
+    @Transactional
+    public PhotographeResponse desactiver(Long id) {
+        Photographe photographe = trouverPhotographe(id);
+        photographe.desactiver();
+        seancesAAnnulerSiDesactive(photographe)
+                .forEach(seance -> seance.setStatut(StatutSeance.ANNULEE));
+        return PhotographeResponse.fromEntity(photographe);
+    }
+
+    @Transactional
+    public PhotographeResponse activer(Long id) {
+        Photographe photographe = trouverPhotographe(id);
+        photographe.activer();
+        return PhotographeResponse.fromEntity(photographe);
+    }
+
     // Suppression physique uniquement si le photographe n'a aucune séance, quel que soit son statut
     @Transactional
     public void delete(Long id) {
@@ -98,6 +128,13 @@ public class PhotographeService {
             throw new RegleMetierException("Impossible de retirer la/les spécialité(s) " + String.join(", ", bloquees)
                     + " : le photographe a des séances à venir non annulées de ce type");
         }
+    }
+
+    // Séances qu'une désactivation annulerait : PLANIFIEE ou CONFIRMEE, débutant après maintenant
+    private List<Seance> seancesAAnnulerSiDesactive(Photographe photographe) {
+        LocalDateTime maintenant = LocalDateTime.now();
+        return seanceRepository.findSeancesAVenir(photographe.getId(), STATUTS_ANNULABLES,
+                maintenant.toLocalDate(), maintenant.toLocalTime());
     }
 
     private Photographe trouverPhotographe(Long id) {
