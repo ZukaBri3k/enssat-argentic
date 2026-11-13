@@ -21,11 +21,15 @@ import java.util.List;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -179,5 +183,26 @@ class PhotographeControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.specialiteIds").value("Au moins une spécialité est requise"));
         verifyNoInteractions(photographeService);
+    }
+
+    @Test
+    @DisplayName("DELETE /photographes/{id} renvoie 204 sans corps")
+    void deletePhotographe_sansSeance_doitRetourner204() throws Exception {
+        mockMvc.perform(delete("/photographes/2"))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+        verify(photographeService).delete(2L);
+    }
+
+    @Test
+    @DisplayName("DELETE /photographes/{id} renvoie 409 en ProblemDetail si le photographe a des séances")
+    void deletePhotographe_avecSeances_doitRetourner409() throws Exception {
+        doThrow(new RegleMetierException("Impossible de supprimer Camille Martin : il a des séances enregistrées. Vous pouvez le désactiver à la place."))
+                .when(photographeService).delete(1L);
+
+        mockMvc.perform(delete("/photographes/1"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").value("Impossible de supprimer Camille Martin : il a des séances enregistrées. Vous pouvez le désactiver à la place."));
     }
 }

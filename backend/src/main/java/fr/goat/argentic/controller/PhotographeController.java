@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -93,5 +94,22 @@ public class PhotographeController {
             @Valid @RequestBody PhotographeRequest request
     ) {
         return ResponseEntity.ok(photographeService.update(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(
+            summary = "Supprimer un photographe",
+            description = "Supprime définitivement un photographe. Refusé s'il a des séances (quel que soit leur statut) : il faut alors le désactiver."
+    )
+    @ApiResponse(responseCode = "204", description = "Photographe supprimé")
+    @ApiResponse(responseCode = "400", description = "Identifiant invalide",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "Photographe introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "409", description = "Le photographe a des séances : le désactiver plutôt que le supprimer",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<Void> deletePhotographe(@PathVariable Long id) {
+        photographeService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }

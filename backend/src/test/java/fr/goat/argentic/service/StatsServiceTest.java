@@ -145,6 +145,7 @@ class StatsServiceTest {
             return topDureeResult;
         }
 
+        @Override public boolean existsByPhotographeId(Long photographeId) { return false; }
         @Override public List<Specialite> findSpecialitesAvecSeancesAVenir(Long photographeId, Collection<Long> specialiteIds, LocalDate date, LocalTime heure) { return List.of(); }
         @Override public void flush() {}
         @Override public <S extends Seance> S saveAndFlush(S entity) { return entity; }
