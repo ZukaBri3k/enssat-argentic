@@ -67,6 +67,17 @@ public class PhotographeService {
         return PhotographeResponse.fromEntity(photographe);
     }
 
+    // Suppression physique uniquement si le photographe n'a aucune séance, quel que soit son statut
+    @Transactional
+    public void delete(Long id) {
+        Photographe photographe = trouverPhotographe(id);
+        if (seanceRepository.existsByPhotographeId(id)) {
+            throw new RegleMetierException("Impossible de supprimer " + photographe.getNom()
+                    + " : il a des séances enregistrées. Vous pouvez le désactiver à la place.");
+        }
+        photographeRepository.delete(photographe);
+    }
+
     // Retirer une spécialité est interdit si le photographe a des séances à venir non annulées de ce type
     private void verifierRetraitSpecialites(Photographe photographe, Set<Long> nouvellesSpecialiteIds) {
         Set<Long> retirees = photographe.getSpecialites().stream()
