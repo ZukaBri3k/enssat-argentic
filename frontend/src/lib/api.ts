@@ -27,6 +27,20 @@ export interface Specialite {
   libelle: string;
 }
 
+export interface Photographe {
+  id: number;
+  nom: string;
+  email: string;
+  actif: boolean;
+  specialites: Specialite[];
+}
+
+export interface PhotographeRequest {
+  nom: string;
+  email: string;
+  specialiteIds: number[];
+}
+
 export interface TopPhotographeSeances {
   photographeId?: number;
   id?: number;
@@ -203,6 +217,24 @@ export async function apiGetMe(token?: string): Promise<User> {
 
 export async function apiGetSpecialites(): Promise<Specialite[]> {
   return api.get<Specialite[]>("/specialites");
+}
+
+// Endpoints Photographes
+export async function apiGetPhotographes(actif?: boolean): Promise<Photographe[]> {
+  const query = actif === undefined ? "" : `?${new URLSearchParams({ actif: String(actif) })}`;
+  return api.get<Photographe[]>(`/photographes${query}`);
+}
+
+export async function apiGetPhotographe(id: number): Promise<Photographe> {
+  return api.get<Photographe>(`/photographes/${id}`);
+}
+
+export async function apiCreatePhotographe(request: PhotographeRequest): Promise<Photographe> {
+  return api.post<Photographe>("/photographes", request);
+}
+
+export async function apiUpdatePhotographe(id: number, request: PhotographeRequest): Promise<Photographe> {
+  return api.put<Photographe>(`/photographes/${id}`, request);
 }
 
 export async function apiGetStatsPing(): Promise<{ status: string }> {
