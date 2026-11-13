@@ -2,6 +2,7 @@ package fr.goat.argentic.controller;
 
 import fr.goat.argentic.dto.PhotographeRequest;
 import fr.goat.argentic.dto.PhotographeResponse;
+import fr.goat.argentic.dto.SeanceAVenirResponse;
 import fr.goat.argentic.service.PhotographeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -94,6 +95,45 @@ public class PhotographeController {
             @Valid @RequestBody PhotographeRequest request
     ) {
         return ResponseEntity.ok(photographeService.update(id, request));
+    }
+
+    @GetMapping("/{id}/seances-a-venir")
+    @Operation(
+            summary = "Lister les séances à venir d'un photographe",
+            description = "Retourne, triées par date, les séances PLANIFIEE ou CONFIRMEE à venir du photographe : celles qu'une désactivation annulerait."
+    )
+    @ApiResponse(responseCode = "200", description = "Séances à venir (liste vide s'il n'y en a pas)")
+    @ApiResponse(responseCode = "400", description = "Identifiant invalide",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "Photographe introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<List<SeanceAVenirResponse>> getSeancesAVenir(@PathVariable Long id) {
+        return ResponseEntity.ok(photographeService.findSeancesAVenir(id));
+    }
+
+    @PostMapping("/{id}/desactivation")
+    @Operation(
+            summary = "Désactiver un photographe",
+            description = "Passe le photographe inactif et annule toutes ses séances PLANIFIEE ou CONFIRMEE à venir, dans une même transaction."
+    )
+    @ApiResponse(responseCode = "200", description = "Photographe désactivé")
+    @ApiResponse(responseCode = "400", description = "Identifiant invalide",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "Photographe introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<PhotographeResponse> desactiverPhotographe(@PathVariable Long id) {
+        return ResponseEntity.ok(photographeService.desactiver(id));
+    }
+
+    @PostMapping("/{id}/activation")
+    @Operation(summary = "Activer un photographe", description = "Repasse le photographe actif : il peut de nouveau être assigné à des séances.")
+    @ApiResponse(responseCode = "200", description = "Photographe activé")
+    @ApiResponse(responseCode = "400", description = "Identifiant invalide",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "Photographe introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<PhotographeResponse> activerPhotographe(@PathVariable Long id) {
+        return ResponseEntity.ok(photographeService.activer(id));
     }
 
     @DeleteMapping("/{id}")
