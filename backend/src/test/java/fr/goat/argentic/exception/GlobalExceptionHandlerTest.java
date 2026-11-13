@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -88,13 +89,53 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.title").value("Accès refusé"));
     }
 
+    @Test
+    @DisplayName("400 MissingServletRequestParameterException : renvoie ProblemDetail 400")
+    void missingParam_doitRetourner400ProblemDetail() throws Exception {
+        mockMvc.perform(get("/test/param"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Paramètre manquant"))
+                .andExpect(jsonPath("$.detail").value("Le paramètre obligatoire 'du' est manquant"));
+    }
+
     record DummyPayload(
             @Email(message = "Email invalide") String email,
             @NotBlank(message = "Nom obligatoire") String nom
     ) {}
 
+    @Test
+    @DisplayName("400 DonneeInvalideException : renvoie ProblemDetail 400 avec l'erreur sur le champ concerné")
+    void donneeInvalide_doitRetourner400AvecErreurDeChamp() throws Exception {
+        mockMvc.perform(get("/test/donnee-invalide"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Données invalides"))
+                .andExpect(jsonPath("$.detail").value("Spécialité(s) introuvable(s) : [99]"))
+                .andExpect(jsonPath("$.errors.specialiteIds").value("Spécialité(s) introuvable(s) : [99]"));
+    }
+
+    @Test
+    @DisplayName("409 DataIntegrityViolationException : une contrainte d'unicité violée en base renvoie ProblemDetail 409")
+    void dataIntegrityViolation_doitRetourner409ProblemDetail() throws Exception {
+        mockMvc.perform(get("/test/integrity"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflit de données"));
+    }
+
     @RestController
     static class DummyController {
+        @GetMapping("/test/donnee-invalide")
+        public void donneeInvalide() {
+            throw new DonneeInvalideException("specialiteIds", "Spécialité(s) introuvable(s) : [99]");
+        }
+
+        @GetMapping("/test/integrity")
+        public void integrity() {
+            throw new DataIntegrityViolationException("Duplicate entry 'a@b.fr' for key 'photographe.email'");
+        }
+
         @PostMapping("/test/validation")
         public void validate(@Valid @RequestBody DummyPayload payload) {}
 
@@ -117,5 +158,8 @@ class GlobalExceptionHandlerTest {
         public void forbidden() {
             throw new AccessDeniedException("Refusé");
         }
+
+        @GetMapping("/test/param")
+        public void param(@org.springframework.web.bind.annotation.RequestParam("du") String du) {}
     }
 }
