@@ -68,6 +68,15 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(DonneeInvalideException.class)
+    public ProblemDetail handleDonneeInvalideException(DonneeInvalideException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Données invalides");
+        problem.setType(URI.create("urn:problem-type:bad-request"));
+        problem.setProperty("errors", Map.of(ex.getChamp(), ex.getMessage()));
+        return problem;
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Corps de la requête illisible ou mal formé");
