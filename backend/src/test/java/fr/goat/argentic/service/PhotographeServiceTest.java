@@ -3,6 +3,7 @@ package fr.goat.argentic.service;
 import fr.goat.argentic.dto.PhotographeRequest;
 import fr.goat.argentic.dto.PhotographeResponse;
 import fr.goat.argentic.dto.SpecialiteResponse;
+import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
 import fr.goat.argentic.model.Photographe;
@@ -142,14 +143,16 @@ class PhotographeServiceTest {
     }
 
     @Test
-    @DisplayName("create lève ResourceNotFoundException si une spécialité n'existe pas")
-    void create_specialiteInconnue_doitLeverResourceNotFound() {
+    @DisplayName("create lève DonneeInvalideException sur le champ specialiteIds si une spécialité n'existe pas")
+    void create_specialiteInconnue_doitLeverDonneeInvalide() {
         when(specialiteRepository.findAllById(Set.of(1L, 99L))).thenReturn(List.of(reportage));
 
         assertThatThrownBy(() -> photographeService.create(
                 new PhotographeRequest("Inès Petit", "ines.petit@argentic.fr", Set.of(1L, 99L))))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("99");
+                .isInstanceOfSatisfying(DonneeInvalideException.class, ex -> {
+                    assertThat(ex.getChamp()).isEqualTo("specialiteIds");
+                    assertThat(ex.getMessage()).contains("99");
+                });
         verify(photographeRepository, never()).save(any());
     }
 
