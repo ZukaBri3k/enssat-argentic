@@ -2,12 +2,17 @@ package fr.goat.argentic.service;
 
 import fr.goat.argentic.dto.PhotographeRequest;
 import fr.goat.argentic.dto.PhotographeResponse;
+import fr.goat.argentic.dto.SeanceAVenirResponse;
 import fr.goat.argentic.dto.SpecialiteResponse;
 import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
+import fr.goat.argentic.model.Client;
+import fr.goat.argentic.model.ClientParticulier;
 import fr.goat.argentic.model.Photographe;
+import fr.goat.argentic.model.Seance;
 import fr.goat.argentic.model.Specialite;
+import fr.goat.argentic.model.StatutSeance;
 import fr.goat.argentic.repository.PhotographeRepository;
 import fr.goat.argentic.repository.SeanceRepository;
 import fr.goat.argentic.repository.SpecialiteRepository;
@@ -19,6 +24,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -263,6 +269,101 @@ class PhotographeServiceTest {
         verify(photographeRepository, never()).delete(any());
     }
 
+    @Test
+    @DisplayName("findSeancesAVenir retourne les séances planifiées ou confirmées à venir du photographe")
+    void findSeancesAVenir_photographeExistant_doitRetournerSesSeancesAVenir() {
+        Photographe camille = photographe(1L, "Camille Martin", "camille.martin@argentic.fr", true, reportage, mariage);
+        Seance mariageDupont = seance(10L, camille, mariage, LocalDateTime.of(2030, 6, 14, 14, 0), 240, StatutSeance.CONFIRMEE);
+        when(photographeRepository.findById(1L)).thenReturn(Optional.of(camille));
+        when(seanceRepository.findSeancesAVenir(eq(1L), eq(Set.of(StatutSeance.PLANIFIEE, StatutSeance.CONFIRMEE)), any(), any()))
+                .thenReturn(List.of(mariageDupont));
+
+        List<SeanceAVenirResponse> result = photographeService.findSeancesAVenir(1L);
+
+        assertThat(result).containsExactly(new SeanceAVenirResponse(
+                10L,
+                LocalDateTime.of(2030, 6, 14, 14, 0),
+                LocalDateTime.of(2030, 6, 14, 18, 0),
+                "Salle des fêtes, Lannion",
+                StatutSeance.CONFIRMEE,
+                "Dupont Marie",
+                new SpecialiteResponse(2L, "Mariage et fêtes")));
+    }
+
+    @Test
+    @DisplayName("findSeancesAVenir lève ResourceNotFoundException si le photographe n'existe pas")
+    void findSeancesAVenir_idInconnu_doitLeverResourceNotFound() {
+        when(photographeRepository.findById(42L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> photographeService.findSeancesAVenir(42L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("42");
+    }
+
+    @Test
+    @DisplayName("desactiver passe le photographe inactif et annule ses séances planifiées ou confirmées à venir")
+    void desactiver_avecSeancesAVenir_doitDesactiverEtAnnulerLesSeances() {
+        Photographe camille = photographe(1L, "Camille Martin", "camille.martin@argentic.fr", true, reportage, mariage);
+        Seance planifiee = seance(10L, camille, reportage, LocalDateTime.of(2030, 3, 2, 9, 0), 120, StatutSeance.PLANIFIEE);
+        Seance confirmee = seance(11L, camille, mariage, LocalDateTime.of(2030, 6, 14, 14, 0), 240, StatutSeance.CONFIRMEE);
+        when(photographeRepository.findById(1L)).thenReturn(Optional.of(camille));
+        when(seanceRepository.findSeancesAVenir(eq(1L), eq(Set.of(StatutSeance.PLANIFIEE, StatutSeance.CONFIRMEE)), any(), any()))
+                .thenReturn(List.of(planifiee, confirmee));
+
+        PhotographeResponse result = photographeService.desactiver(1L);
+
+        assertThat(result.actif()).isFalse();
+        assertThat(camille.isActif()).isFalse();
+        assertThat(planifiee.getStatut()).isEqualTo(StatutSeance.ANNULEE);
+        assertThat(confirmee.getStatut()).isEqualTo(StatutSeance.ANNULEE);
+    }
+
+    @Test
+    @DisplayName("desactiver sans séance à venir passe simplement le photographe inactif")
+    void desactiver_sansSeanceAVenir_doitDesactiver() {
+        Photographe lucas = photographe(2L, "Lucas Bernard", "lucas.bernard@argentic.fr", true, famille);
+        when(photographeRepository.findById(2L)).thenReturn(Optional.of(lucas));
+        when(seanceRepository.findSeancesAVenir(eq(2L), any(), any(), any())).thenReturn(List.of());
+
+        PhotographeResponse result = photographeService.desactiver(2L);
+
+        assertThat(result).isEqualTo(new PhotographeResponse(2L, "Lucas Bernard", "lucas.bernard@argentic.fr", false, List.of(
+                new SpecialiteResponse(3L, "Famille"))));
+    }
+
+    @Test
+    @DisplayName("desactiver lève ResourceNotFoundException si le photographe n'existe pas")
+    void desactiver_idInconnu_doitLeverResourceNotFound() {
+        when(photographeRepository.findById(42L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> photographeService.desactiver(42L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("42");
+        verify(seanceRepository, never()).findSeancesAVenir(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("activer repasse un photographe inactif en actif")
+    void activer_photographeInactif_doitLActiver() {
+        Photographe lucas = photographe(2L, "Lucas Bernard", "lucas.bernard@argentic.fr", false, famille);
+        when(photographeRepository.findById(2L)).thenReturn(Optional.of(lucas));
+
+        PhotographeResponse result = photographeService.activer(2L);
+
+        assertThat(result).isEqualTo(new PhotographeResponse(2L, "Lucas Bernard", "lucas.bernard@argentic.fr", true, List.of(
+                new SpecialiteResponse(3L, "Famille"))));
+    }
+
+    @Test
+    @DisplayName("activer lève ResourceNotFoundException si le photographe n'existe pas")
+    void activer_idInconnu_doitLeverResourceNotFound() {
+        when(photographeRepository.findById(42L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> photographeService.activer(42L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("42");
+    }
+
     private static Specialite specialite(Long id, String libelle) {
         Specialite specialite = new Specialite(libelle);
         specialite.setId(id);
@@ -274,5 +375,15 @@ class PhotographeServiceTest {
         photographe.setId(id);
         photographe.setActif(actif);
         return photographe;
+    }
+
+    private static Seance seance(Long id, Photographe photographe, Specialite specialite,
+                                 LocalDateTime debut, int dureeMinutes, StatutSeance statut) {
+        Client client = new ClientParticulier("marie.dupont@mail.fr", "1 rue de la Paix, Lannion", "Dupont", "Marie");
+        Seance seance = new Seance(photographe, client, specialite,
+                debut.toLocalDate(), debut.toLocalTime(), dureeMinutes, "Salle des fêtes, Lannion");
+        seance.setId(id);
+        seance.setStatut(statut);
+        return seance;
     }
 }
