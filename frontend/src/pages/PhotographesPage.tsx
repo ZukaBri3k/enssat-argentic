@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { apiGetPhotographe, apiGetPhotographes, type Photographe, type Specialite } from "@/lib/api";
+import {
+  apiDeletePhotographe,
+  apiGetPhotographe,
+  apiGetPhotographes,
+  type Photographe,
+  type Specialite,
+} from "@/lib/api";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { useToast } from "@/components/shared/ToastProvider";
 import { PhotographeForm } from "@/components/photographes/PhotographeForm";
@@ -11,7 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2, Mail, Pencil, Plus, UserSquare2, X } from "lucide-react";
+import { Loader2, Mail, Pencil, Plus, Trash2, UserSquare2, X } from "lucide-react";
 
 type FiltreActif = "tous" | "actifs" | "inactifs";
 
@@ -57,13 +64,17 @@ function SpecialitesBadges({ specialites }: { specialites: Specialite[] }) {
 interface PhotographeDetailProps {
   id: number;
   onEdit: (photographe: Photographe) => void;
+  onDeleted: (photographe: Photographe) => void;
   onClose: () => void;
 }
 
-function PhotographeDetail({ id, onEdit, onClose }: PhotographeDetailProps) {
+function PhotographeDetail({ id, onEdit, onDeleted, onClose }: PhotographeDetailProps) {
   const [photographe, setPhotographe] = useState<Photographe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<unknown>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -71,6 +82,7 @@ function PhotographeDetail({ id, onEdit, onClose }: PhotographeDetailProps) {
       setLoading(true);
       setError(null);
       setPhotographe(null);
+      setDeleteError(null);
       try {
         const data = await apiGetPhotographe(id);
         if (mounted) setPhotographe(data);
@@ -88,6 +100,21 @@ function PhotographeDetail({ id, onEdit, onClose }: PhotographeDetailProps) {
       mounted = false;
     };
   }, [id]);
+
+  const handleDelete = async () => {
+    if (!photographe) return;
+    setDeleting(true);
+    try {
+      await apiDeletePhotographe(photographe.id);
+      onDeleted(photographe);
+    } catch (err) {
+      // Refus (409 si le photographe a des séances) : message du back affiché dans le panneau
+      setDeleteError(err);
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
 
   return (
     <Card>
@@ -116,6 +143,21 @@ function PhotographeDetail({ id, onEdit, onClose }: PhotographeDetailProps) {
               Modifier
             </Button>
           )}
+          {photographe && (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="cursor-pointer flex items-center gap-1.5"
+              onClick={() => {
+                setDeleteError(null);
+                setConfirmDelete(true);
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Supprimer
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -129,6 +171,11 @@ function PhotographeDetail({ id, onEdit, onClose }: PhotographeDetailProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
+        <ErrorAlert
+          error={deleteError}
+          title="Suppression impossible"
+          onDismiss={() => setDeleteError(null)}
+        />
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -151,6 +198,20 @@ function PhotographeDetail({ id, onEdit, onClose }: PhotographeDetailProps) {
           )
         )}
       </CardContent>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Supprimer ce photographe ?"
+        description={
+          photographe
+            ? `${photographe.nom} sera définitivement supprimé. Cette action est irréversible.`
+            : undefined
+        }
+        confirmLabel="Supprimer"
+        variant="destructive"
+        isLoading={deleting}
+        onConfirm={handleDelete}
+      />
     </Card>
   );
 }
@@ -197,6 +258,12 @@ export function PhotographesPage() {
     );
     setReloadKey((k) => k + 1);
     setPanneau({ mode: "detail", id: saved.id });
+  };
+
+  const handleDeleted = (supprime: Photographe) => {
+    success("Photographe supprimé", `${supprime.nom} a bien été supprimé.`);
+    setReloadKey((k) => k + 1);
+    setPanneau(null);
   };
 
   return (
@@ -302,6 +369,7 @@ export function PhotographesPage() {
           <PhotographeDetail
             id={panneau.id}
             onEdit={(photographe) => setPanneau({ mode: "edition", photographe })}
+            onDeleted={handleDeleted}
             onClose={() => setPanneau(null)}
           />
         )}
