@@ -237,6 +237,10 @@ export async function apiUpdatePhotographe(id: number, request: PhotographeReque
   return api.put<Photographe>(`/photographes/${id}`, request);
 }
 
+export async function apiDeletePhotographe(id: number): Promise<void> {
+  return api.delete<void>(`/photographes/${id}`);
+}
+
 export async function apiGetStatsPing(): Promise<{ status: string }> {
   return api.get<{ status: string }>("/stats/ping");
 }
