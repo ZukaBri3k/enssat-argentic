@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { apiGetSpecialites, type Specialite } from "@/lib/api";
-import { useToast } from "@/components/shared/ToastProvider";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { apiGetPhotographe, apiGetPhotographes, type Photographe, type Specialite } from "@/lib/api";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
+import { useToast } from "@/components/shared/ToastProvider";
+import { PhotographeForm } from "@/components/photographes/PhotographeForm";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,40 +11,193 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { UserSquare2, Tag, Bell, ShieldAlert } from "lucide-react";
+import { Loader2, Mail, Pencil, Plus, UserSquare2, X } from "lucide-react";
 
-export function PhotographesPage() {
-  const { success, error: toastError, showApiError } = useToast();
-  const [specialites, setSpecialites] = useState<Specialite[]>([]);
-  const [loadingSpecs, setLoadingSpecs] = useState(true);
-  const [loadError, setLoadError] = useState<unknown>(null);
-  const [demoModalOpen, setDemoModalOpen] = useState(false);
+type FiltreActif = "tous" | "actifs" | "inactifs";
+
+// Contenu du panneau latéral
+type Panneau =
+  | { mode: "detail"; id: number }
+  | { mode: "creation" }
+  | { mode: "edition"; photographe: Photographe };
+
+const FILTRES: { value: FiltreActif; label: string; actif?: boolean }[] = [
+  { value: "tous", label: "Tous" },
+  { value: "actifs", label: "Actifs", actif: true },
+  { value: "inactifs", label: "Inactifs", actif: false },
+];
+
+function StatutBadge({ actif }: { actif: boolean }) {
+  return actif ? (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+      Actif
+    </span>
+  ) : (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+      Inactif
+    </span>
+  );
+}
+
+function SpecialitesBadges({ specialites }: { specialites: Specialite[] }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {specialites.map((spec) => (
+        <span
+          key={spec.id}
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border"
+        >
+          {spec.libelle}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+interface PhotographeDetailProps {
+  id: number;
+  onEdit: (photographe: Photographe) => void;
+  onClose: () => void;
+}
+
+function PhotographeDetail({ id, onEdit, onClose }: PhotographeDetailProps) {
+  const [photographe, setPhotographe] = useState<Photographe | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     let mounted = true;
     async function load() {
+      setLoading(true);
+      setError(null);
+      setPhotographe(null);
       try {
-        setLoadingSpecs(true);
-        const data = await apiGetSpecialites();
-        if (mounted) {
-          setSpecialites(data);
-        }
+        const data = await apiGetPhotographe(id);
+        if (mounted) setPhotographe(data);
       } catch (err) {
         if (mounted) {
-          setLoadError(err);
-          showApiError(err, "Impossible de charger les spécialités");
+          setPhotographe(null);
+          setError(err);
         }
       } finally {
-        if (mounted) {
-          setLoadingSpecs(false);
-        }
+        if (mounted) setLoading(false);
       }
     }
     load();
     return () => {
       mounted = false;
     };
-  }, [showApiError]);
+  }, [id]);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-2">
+        <div className="space-y-1">
+          <CardTitle className="text-base">
+            {photographe ? photographe.nom : "Détail du photographe"}
+          </CardTitle>
+          {photographe && (
+            <CardDescription className="flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5" />
+              <span>{photographe.email}</span>
+            </CardDescription>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {photographe && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="cursor-pointer flex items-center gap-1.5"
+              onClick={() => onEdit(photographe)}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Modifier
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="cursor-pointer"
+            onClick={onClose}
+            aria-label="Fermer le détail"
+          >
+            <X />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Chargement...
+          </div>
+        ) : error ? (
+          <ErrorAlert error={error} />
+        ) : (
+          photographe && (
+            <>
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium text-muted-foreground">Statut</div>
+                <StatutBadge actif={photographe.actif} />
+              </div>
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium text-muted-foreground">Spécialités</div>
+                <SpecialitesBadges specialites={photographe.specialites} />
+              </div>
+            </>
+          )
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function PhotographesPage() {
+  const [filtre, setFiltre] = useState<FiltreActif>("tous");
+  const [photographes, setPhotographes] = useState<Photographe[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [panneau, setPanneau] = useState<Panneau | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const { success } = useToast();
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const actif = FILTRES.find((f) => f.value === filtre)?.actif;
+        const data = await apiGetPhotographes(actif);
+        if (mounted) setPhotographes(data);
+      } catch (err) {
+        if (mounted) {
+          setPhotographes([]);
+          setLoadError(err);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [filtre, reloadKey]);
+
+  const selectedId = panneau?.mode === "detail" ? panneau.id : null;
+
+  const handleSaved = (saved: Photographe, creation: boolean) => {
+    success(
+      creation ? "Photographe créé" : "Photographe modifié",
+      `${saved.nom} a bien été ${creation ? "créé" : "modifié"}.`
+    );
+    setReloadKey((k) => k + 1);
+    setPanneau({ mode: "detail", id: saved.id });
+  };
 
   return (
     <div className="space-y-6">
@@ -59,98 +212,115 @@ export function PhotographesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1" role="group" aria-label="Filtrer par statut">
+            {FILTRES.map(({ value, label }) => (
+              <Button
+                key={value}
+                type="button"
+                size="sm"
+                variant={filtre === value ? "default" : "outline"}
+                className="cursor-pointer"
+                aria-pressed={filtre === value}
+                onClick={() => {
+                  setFiltre(value);
+                  // Un formulaire en cours de saisie reste ouvert
+                  setPanneau((courant) => (courant?.mode === "detail" ? null : courant));
+                }}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
           <Button
             type="button"
-            variant="outline"
             size="sm"
             className="cursor-pointer flex items-center gap-1.5"
-            onClick={() =>
-              success("Notification Toast", "Le système de notifications partagé fonctionne !")
-            }
+            onClick={() => setPanneau({ mode: "creation" })}
           >
-            <Bell className="w-3.5 h-3.5" />
-            Tester Toast
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="cursor-pointer flex items-center gap-1.5"
-            onClick={() => setDemoModalOpen(true)}
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            Tester Modale
+            <Plus className="w-3.5 h-3.5" />
+            Nouveau photographe
           </Button>
         </div>
       </div>
 
       <ErrorAlert error={loadError} />
 
-      {/* Spécialités disponibles chargées depuis GET /specialites */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Tag className="w-4 h-4 text-primary" />
-            <span>Spécialités du studio (GET /specialites)</span>
-          </CardTitle>
-          <CardDescription>
-            Liste fixe en lecture seule récupérée depuis le backend avec le token Bearer.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadingSpecs ? (
-            <div className="text-xs text-muted-foreground">Chargement des spécialités...</div>
-          ) : specialites.length === 0 ? (
-            <div className="text-xs text-muted-foreground">Aucune spécialité trouvée.</div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {specialites.map((spec) => (
-                <span
-                  key={spec.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border"
-                >
-                  <span className="text-muted-foreground font-mono">#{spec.id}</span>
-                  <span>{spec.libelle}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className={panneau !== null ? "lg:col-span-2" : "lg:col-span-3"}>
+          <CardContent className="overflow-x-auto">
+            {loading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Chargement des photographes...
+              </div>
+            ) : loadError ? null : photographes.length === 0 ? (
+              <div className="text-xs text-muted-foreground">Aucun photographe trouvé.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="py-2 pr-4 font-medium">Nom</th>
+                    <th className="py-2 pr-4 font-medium">Email</th>
+                    <th className="py-2 pr-4 font-medium">Spécialités</th>
+                    <th className="py-2 font-medium">Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {photographes.map((p) => (
+                    <tr
+                      key={p.id}
+                      className={`border-b border-border last:border-0 hover:bg-muted/50 ${
+                        selectedId === p.id ? "bg-muted" : ""
+                      }`}
+                    >
+                      <td className="py-2.5 pr-4 font-medium">
+                        <button
+                          type="button"
+                          className="cursor-pointer text-left hover:underline"
+                          onClick={() => setPanneau({ mode: "detail", id: p.id })}
+                        >
+                          {p.nom}
+                        </button>
+                      </td>
+                      <td className="py-2.5 pr-4 text-muted-foreground">{p.email}</td>
+                      <td className="py-2.5 pr-4">
+                        <SpecialitesBadges specialites={p.specialites} />
+                      </td>
+                      <td className="py-2.5">
+                        <StatutBadge actif={p.actif} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Squelette de la rubrique Photographes */}
-      <Card className="border-dashed">
-        <CardHeader className="text-center items-center py-10">
-          <div className="p-3 rounded-2xl bg-muted text-muted-foreground mb-2">
-            <UserSquare2 className="w-8 h-8" />
-          </div>
-          <CardTitle>Rubrique Photographes</CardTitle>
-          <CardDescription className="max-w-md">
-            Cette rubrique accueillera la liste des photographes, la création/modification et la
-            désactivation avec annulation des séances à venir.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
-      {/* Modale de démonstration du composant partagé ConfirmDialog */}
-      <ConfirmDialog
-        open={demoModalOpen}
-        onOpenChange={setDemoModalOpen}
-        title="Désactiver ce photographe ?"
-        description="Exemple de modale de confirmation partagée : la désactivation annulera automatiquement les séances planifiées ou confirmées à venir."
-        confirmLabel="Confirmer la désactivation"
-        cancelLabel="Annuler"
-        variant="destructive"
-        onConfirm={() => {
-          setDemoModalOpen(false);
-          toastError(
-            "Action simulée",
-            "Exemple d'erreur ProblemDetail avec détails par champ",
-            { specialites: "Au moins une spécialité est requise" }
-          );
-        }}
-      />
+        {panneau?.mode === "detail" && (
+          <PhotographeDetail
+            id={panneau.id}
+            onEdit={(photographe) => setPanneau({ mode: "edition", photographe })}
+            onClose={() => setPanneau(null)}
+          />
+        )}
+        {panneau?.mode === "creation" && (
+          <PhotographeForm
+            key="creation"
+            onSaved={(saved) => handleSaved(saved, true)}
+            onCancel={() => setPanneau(null)}
+          />
+        )}
+        {panneau?.mode === "edition" && (
+          <PhotographeForm
+            key={`edition-${panneau.photographe.id}`}
+            photographe={panneau.photographe}
+            onSaved={(saved) => handleSaved(saved, false)}
+            onCancel={() => setPanneau({ mode: "detail", id: panneau.photographe.id })}
+          />
+        )}
+      </div>
     </div>
   );
 }
