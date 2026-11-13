@@ -63,9 +63,7 @@ public class PhotographeController {
     @PostMapping
     @Operation(summary = "Créer un photographe", description = "Crée un photographe actif avec au moins une spécialité.")
     @ApiResponse(responseCode = "201", description = "Photographe créé")
-    @ApiResponse(responseCode = "400", description = "Données invalides (nom, email, au moins une spécialité)",
-            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    @ApiResponse(responseCode = "404", description = "Spécialité introuvable",
+    @ApiResponse(responseCode = "400", description = "Données invalides (nom, email, au moins une spécialité, spécialité inexistante)",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "409", description = "Adresse email déjà utilisée",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
@@ -84,9 +82,9 @@ public class PhotographeController {
             description = "Modifie le nom, l'email et les spécialités. Retirer une spécialité est refusé si le photographe a des séances à venir non annulées de ce type."
     )
     @ApiResponse(responseCode = "200", description = "Photographe modifié")
-    @ApiResponse(responseCode = "400", description = "Données invalides (nom, email, au moins une spécialité)",
+    @ApiResponse(responseCode = "400", description = "Données invalides (nom, email, au moins une spécialité, spécialité inexistante)",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    @ApiResponse(responseCode = "404", description = "Photographe ou spécialité introuvable",
+    @ApiResponse(responseCode = "404", description = "Photographe introuvable",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     @ApiResponse(responseCode = "409", description = "Adresse email déjà utilisée, ou spécialité retirée alors que des séances à venir en dépendent",
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
