@@ -2,10 +2,12 @@ package fr.goat.argentic.controller;
 
 import fr.goat.argentic.dto.PhotographeRequest;
 import fr.goat.argentic.dto.PhotographeResponse;
+import fr.goat.argentic.dto.SeanceAVenirResponse;
 import fr.goat.argentic.dto.SpecialiteResponse;
 import fr.goat.argentic.exception.GlobalExceptionHandler;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
+import fr.goat.argentic.model.StatutSeance;
 import fr.goat.argentic.service.PhotographeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -204,5 +207,82 @@ class PhotographeControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.detail").value("Impossible de supprimer Camille Martin : il a des séances enregistrées. Vous pouvez le désactiver à la place."));
+    }
+
+    @Test
+    @DisplayName("GET /photographes/{id}/seances-a-venir renvoie 200 et les séances à venir")
+    void getSeancesAVenir_photographeExistant_doitRetourner200() throws Exception {
+        when(photographeService.findSeancesAVenir(1L)).thenReturn(List.of(new SeanceAVenirResponse(
+                10L,
+                LocalDateTime.of(2030, 6, 14, 14, 0),
+                LocalDateTime.of(2030, 6, 14, 18, 0),
+                "Salle des fêtes, Lannion",
+                StatutSeance.CONFIRMEE,
+                "Dupont Marie",
+                new SpecialiteResponse(2L, "Mariage et fêtes"))));
+
+        mockMvc.perform(get("/photographes/1/seances-a-venir"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(10))
+                .andExpect(jsonPath("$[0].debut").value("2030-06-14T14:00:00"))
+                .andExpect(jsonPath("$[0].fin").value("2030-06-14T18:00:00"))
+                .andExpect(jsonPath("$[0].statut").value("CONFIRMEE"))
+                .andExpect(jsonPath("$[0].clientIdentite").value("Dupont Marie"))
+                .andExpect(jsonPath("$[0].specialite.libelle").value("Mariage et fêtes"));
+    }
+
+    @Test
+    @DisplayName("GET /photographes/{id}/seances-a-venir renvoie 404 en ProblemDetail si le photographe n'existe pas")
+    void getSeancesAVenir_idInconnu_doitRetourner404() throws Exception {
+        when(photographeService.findSeancesAVenir(42L)).thenThrow(new ResourceNotFoundException("Photographe introuvable : 42"));
+
+        mockMvc.perform(get("/photographes/42/seances-a-venir"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("Photographe introuvable : 42"));
+    }
+
+    @Test
+    @DisplayName("POST /photographes/{id}/desactivation renvoie 200 et le photographe inactif")
+    void desactiverPhotographe_photographeActif_doitRetourner200() throws Exception {
+        when(photographeService.desactiver(1L)).thenReturn(new PhotographeResponse(
+                1L, "Camille Martin", "camille.martin@argentic.fr", false, camille.specialites()));
+
+        mockMvc.perform(post("/photographes/1/desactivation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.actif").value(false));
+    }
+
+    @Test
+    @DisplayName("POST /photographes/{id}/desactivation renvoie 404 en ProblemDetail si le photographe n'existe pas")
+    void desactiverPhotographe_idInconnu_doitRetourner404() throws Exception {
+        when(photographeService.desactiver(42L)).thenThrow(new ResourceNotFoundException("Photographe introuvable : 42"));
+
+        mockMvc.perform(post("/photographes/42/desactivation"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Photographe introuvable : 42"));
+    }
+
+    @Test
+    @DisplayName("POST /photographes/{id}/activation renvoie 200 et le photographe actif")
+    void activerPhotographe_photographeInactif_doitRetourner200() throws Exception {
+        when(photographeService.activer(1L)).thenReturn(camille);
+
+        mockMvc.perform(post("/photographes/1/activation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.actif").value(true));
+    }
+
+    @Test
+    @DisplayName("POST /photographes/{id}/activation renvoie 404 en ProblemDetail si le photographe n'existe pas")
+    void activerPhotographe_idInconnu_doitRetourner404() throws Exception {
+        when(photographeService.activer(42L)).thenThrow(new ResourceNotFoundException("Photographe introuvable : 42"));
+
+        mockMvc.perform(post("/photographes/42/activation"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Photographe introuvable : 42"));
     }
 }
