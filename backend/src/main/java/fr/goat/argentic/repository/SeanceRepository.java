@@ -12,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+
 
 public interface SeanceRepository extends JpaRepository<Seance, Long> {
 
@@ -70,4 +72,14 @@ public interface SeanceRepository extends JpaRepository<Seance, Long> {
             @Param("idClient") Long idClient,
             @Param("statutSeance") StatutSeance statutSeance
     );
+
+    @Query("""
+            SELECT s
+            FROM Seance s
+            JOIN FETCH s.photographe
+            JOIN FETCH s.client
+            JOIN FETCH s.specialite
+            WHERE s.id = :idSeance
+            """)
+    Optional<Seance> getSeanceById(@Param("idSeance") Long idSeance);
 }
