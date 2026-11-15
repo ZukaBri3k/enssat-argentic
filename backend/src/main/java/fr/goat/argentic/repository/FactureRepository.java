@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Optional;
 
 public interface FactureRepository extends JpaRepository<Facture, Long> {
 
@@ -34,4 +35,6 @@ public interface FactureRepository extends JpaRepository<Facture, Long> {
             @Param("du") LocalDate du,
             @Param("au") LocalDate au
     );
+
+    Optional<Facture> findBySeanceId(Long seanceId);
 }
