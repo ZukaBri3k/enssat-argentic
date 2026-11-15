@@ -52,7 +52,7 @@ export interface SeanceAVenir {
   statut: StatutSeance;
   clientIdentite: string;
   specialite: Specialite;
-export type StatutSeance = "PLANIFIEE" | "CONFIRMEE" | "TERMINEE" | "ANNULEE";
+}
 
 export type StatutPaiement = "EN_ATTENTE" | "PAYEE" | "ANNULEE";
 
@@ -397,11 +397,7 @@ export async function apiGetSeanceById(id: number): Promise<SeanceResponse> {
   return api.get<SeanceResponse>(`/seances/${id}`);
 }
 
-// Endpoints Photographes & Clients (pour les listes déroulantes de filtre)
-export async function apiGetPhotographes(): Promise<PhotographeSummary[]> {
-  return api.get<PhotographeSummary[]>("/photographes");
-}
-
+// Endpoints Clients (pour les listes déroulantes de filtre)
 export async function apiGetClients(): Promise<ClientSummary[]> {
   return api.get<ClientSummary[]>("/clients");
 }
