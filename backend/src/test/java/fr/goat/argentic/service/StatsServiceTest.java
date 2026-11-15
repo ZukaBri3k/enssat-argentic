@@ -22,9 +22,11 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 // Les stubs portent les arguments attendus : en strict stubs, un appel avec d'autres arguments fait échouer le test
+
 @ExtendWith(MockitoExtension.class)
 class StatsServiceTest {
 
@@ -50,6 +52,7 @@ class StatsServiceTest {
         List<TopPhotographeSeancesResponse> result = statsService.getTopPhotographesParSeances();
 
         assertThat(result).isEqualTo(attendu);
+        verify(seanceRepository).findTopPhotographesBySeances(StatutSeance.TERMINEE, PageRequest.of(0, 5));
     }
 
     @Test
@@ -65,6 +68,7 @@ class StatsServiceTest {
         List<TopPhotographeDureeResponse> result = statsService.getTopPhotographesParDuree();
 
         assertThat(result).isEqualTo(attendu);
+        verify(seanceRepository).findTopPhotographesByDuree(StatutSeance.TERMINEE, PageRequest.of(0, 5));
     }
 
     @Test
@@ -72,6 +76,7 @@ class StatsServiceTest {
     void getChiffreAffaires_periodeValide_doitCalculerHtEtTtc() {
         LocalDate du = LocalDate.of(2026, 1, 1);
         LocalDate au = LocalDate.of(2026, 12, 31);
+
         when(factureRepository.sumMontantHtByStatutAndPeriode(StatutPaiement.PAYEE, du, au))
                 .thenReturn(new BigDecimal("10530.00"));
         when(factureRepository.sumMontantTtcByStatutAndPeriode(StatutPaiement.PAYEE, du, au))
@@ -83,6 +88,9 @@ class StatsServiceTest {
         assertThat(res.au()).isEqualTo(au);
         assertThat(res.montantHt()).isEqualByComparingTo("10530.00");
         assertThat(res.montantTtc()).isEqualByComparingTo("12636.00");
+
+        verify(factureRepository).sumMontantHtByStatutAndPeriode(StatutPaiement.PAYEE, du, au);
+        verify(factureRepository).sumMontantTtcByStatutAndPeriode(StatutPaiement.PAYEE, du, au);
     }
 
     @Test
