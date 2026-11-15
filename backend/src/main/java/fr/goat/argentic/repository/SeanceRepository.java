@@ -1,5 +1,6 @@
 package fr.goat.argentic.repository;
 
+import fr.goat.argentic.dto.SeanceResponse;
 import fr.goat.argentic.dto.TopPhotographeDureeResponse;
 import fr.goat.argentic.dto.TopPhotographeSeancesResponse;
 import fr.goat.argentic.model.Seance;
@@ -14,6 +15,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+
 
 public interface SeanceRepository extends JpaRepository<Seance, Long> {
 
@@ -86,4 +89,36 @@ public interface SeanceRepository extends JpaRepository<Seance, Long> {
             @Param("statut") StatutSeance statut,
             Pageable pageable
     );
+
+
+    @Query("""
+            SELECT s
+            FROM Seance s
+            JOIN FETCH s.photographe
+            JOIN FETCH s.client
+            JOIN FETCH s.specialite
+            WHERE (:du IS NULL OR s.date >= :du)
+              AND (:au IS NULL OR s.date <= :au)
+              AND (:idPhotographe IS NULL OR s.photographe.id = :idPhotographe)
+              AND (:idClient IS NULL OR s.client.id = :idClient)
+              AND (:statutSeance IS NULL OR s.statut = :statutSeance)
+            ORDER BY s.date ASC, s.heureDebut ASC
+            """)
+    List<Seance> getSeances(
+            @Param("du") LocalDate du,
+            @Param("au") LocalDate au,
+            @Param("idPhotographe") Long idPhotographe,
+            @Param("idClient") Long idClient,
+            @Param("statutSeance") StatutSeance statutSeance
+    );
+
+    @Query("""
+            SELECT s
+            FROM Seance s
+            JOIN FETCH s.photographe
+            JOIN FETCH s.client
+            JOIN FETCH s.specialite
+            WHERE s.id = :idSeance
+            """)
+    Optional<Seance> getSeanceById(@Param("idSeance") Long idSeance);
 }
