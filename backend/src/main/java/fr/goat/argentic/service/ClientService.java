@@ -1,6 +1,7 @@
 package fr.goat.argentic.service;
 
 import fr.goat.argentic.dto.*;
+import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
 import fr.goat.argentic.model.Client;
@@ -57,10 +58,10 @@ public class ClientService {
         // Vérification du type et validation conditionnelle
         if ("PARTICULIER".equalsIgnoreCase(request.type())) {
             if (request.nom() == null || request.nom().isBlank()) {
-                throw new IllegalArgumentException("Le nom est obligatoire pour un particulier");
+                throw new DonneeInvalideException("nom", "Le nom est obligatoire pour un particulier");
             }
             if (request.prenom() == null || request.prenom().isBlank()) {
-                throw new IllegalArgumentException("Le prénom est obligatoire pour un particulier");
+                throw new DonneeInvalideException("prenom", "Le prénom est obligatoire pour un particulier");
             }
 
             ClientParticulier particulier = new ClientParticulier(
@@ -73,10 +74,10 @@ public class ClientService {
 
         } else if ("ENTREPRISE".equalsIgnoreCase(request.type())) {
             if (request.raisonSociale() == null || request.raisonSociale().isBlank()) {
-                throw new IllegalArgumentException("La raison sociale est obligatoire pour une entreprise");
+                throw new DonneeInvalideException("raisonSociale", "La raison sociale est obligatoire pour une entreprise");
             }
             if (request.numeroSirenTva() == null || request.numeroSirenTva().isBlank()) {
-                throw new IllegalArgumentException("Le numéro SIREN/TVA est obligatoire pour une entreprise");
+                throw new DonneeInvalideException("numeroSirenTva", "Le numéro SIREN/TVA est obligatoire pour une entreprise");
             }
 
             ClientEntreprise entreprise = new ClientEntreprise(
@@ -88,7 +89,7 @@ public class ClientService {
             return ClientResponse.fromEntity(clientRepository.save(entreprise));
 
         } else {
-            throw new IllegalArgumentException("Type de client inconnu : " + request.type()
+            throw new DonneeInvalideException("type", "Type de client inconnu : " + request.type()
                     + ". Les valeurs autorisées sont PARTICULIER ou ENTREPRISE.");
         }
     }
@@ -107,6 +108,12 @@ public class ClientService {
             }
 
             // Tout va bien : on met à jour les champs propres au particulier
+            if (request.nom() == null || request.nom().isBlank()) {
+                throw new DonneeInvalideException("nom", "Le nom est obligatoire pour un particulier");
+            }
+            if (request.prenom() == null || request.prenom().isBlank()) {
+                throw new DonneeInvalideException("prenom", "Le prénom est obligatoire pour un particulier");
+            }
             p.setNom(request.nom().trim());
             p.setPrenom(request.prenom().trim());
 
@@ -117,6 +124,12 @@ public class ClientService {
             }
 
             // Tout va bien : on met à jour les champs propres à l'entreprise
+            if (request.raisonSociale() == null || request.raisonSociale().isBlank()) {
+                throw new DonneeInvalideException("raisonSociale", "La raison sociale est obligatoire pour une entreprise");
+            }
+            if (request.numeroSirenTva() == null || request.numeroSirenTva().isBlank()) {
+                throw new DonneeInvalideException("numeroSirenTva", "Le numéro SIREN/TVA est obligatoire pour une entreprise");
+            }
             e.setRaisonSociale(request.raisonSociale().trim());
             e.setNumeroSirenTva(request.numeroSirenTva().trim());
         }
