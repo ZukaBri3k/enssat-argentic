@@ -27,6 +27,31 @@ export interface Specialite {
   libelle: string;
 }
 
+export interface Photographe {
+  id: number;
+  nom: string;
+  email: string;
+  actif: boolean;
+  specialites: Specialite[];
+}
+
+export interface PhotographeRequest {
+  nom: string;
+  email: string;
+  specialiteIds: number[];
+}
+
+export type StatutSeance = "PLANIFIEE" | "CONFIRMEE" | "TERMINEE" | "ANNULEE";
+
+// Séance qu'une désactivation du photographe annulerait
+export interface SeanceAVenir {
+  id: number;
+  debut: string;
+  fin: string;
+  lieu: string;
+  statut: StatutSeance;
+  clientIdentite: string;
+  specialite: Specialite;
 export type StatutSeance = "PLANIFIEE" | "CONFIRMEE" | "TERMINEE" | "ANNULEE";
 
 export type StatutPaiement = "EN_ATTENTE" | "PAYEE" | "ANNULEE";
@@ -282,6 +307,40 @@ export async function apiGetMe(token?: string): Promise<User> {
 
 export async function apiGetSpecialites(): Promise<Specialite[]> {
   return api.get<Specialite[]>("/specialites");
+}
+
+// Endpoints Photographes
+export async function apiGetPhotographes(actif?: boolean): Promise<Photographe[]> {
+  const query = actif === undefined ? "" : `?${new URLSearchParams({ actif: String(actif) })}`;
+  return api.get<Photographe[]>(`/photographes${query}`);
+}
+
+export async function apiGetPhotographe(id: number): Promise<Photographe> {
+  return api.get<Photographe>(`/photographes/${id}`);
+}
+
+export async function apiCreatePhotographe(request: PhotographeRequest): Promise<Photographe> {
+  return api.post<Photographe>("/photographes", request);
+}
+
+export async function apiUpdatePhotographe(id: number, request: PhotographeRequest): Promise<Photographe> {
+  return api.put<Photographe>(`/photographes/${id}`, request);
+}
+
+export async function apiDeletePhotographe(id: number): Promise<void> {
+  return api.delete<void>(`/photographes/${id}`);
+}
+
+export async function apiGetSeancesAVenir(id: number): Promise<SeanceAVenir[]> {
+  return api.get<SeanceAVenir[]>(`/photographes/${id}/seances-a-venir`);
+}
+
+export async function apiDesactiverPhotographe(id: number): Promise<Photographe> {
+  return api.post<Photographe>(`/photographes/${id}/desactivation`);
+}
+
+export async function apiActiverPhotographe(id: number): Promise<Photographe> {
+  return api.post<Photographe>(`/photographes/${id}/activation`);
 }
 
 export async function apiGetStatsPing(): Promise<{ status: string }> {
