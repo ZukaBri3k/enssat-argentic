@@ -25,8 +25,13 @@ public record SeanceResponse(
         Long factureId,
         String factureNumero
 ) {
-    // méthode de mapping statique fromEntity(Seance seance, Facture facture)
+
     public static SeanceResponse fromEntity(fr.goat.argentic.model.Seance s) {
+        return fromEntity(s, null);
+    }
+    
+    // méthode de mapping statique fromEntity(Seance seance, Facture facture)
+    public static SeanceResponse fromEntity(fr.goat.argentic.model.Seance s, fr.goat.argentic.model.Facture f) {
         return new SeanceResponse(
                 s.getId(),
                 s.getDate(),
@@ -43,8 +48,8 @@ public record SeanceResponse(
                 s.getClient().getIdentite(),
                 s.getClient().getEmail(),
                 SpecialiteResponse.fromEntity(s.getSpecialite()),
-                null,
-                null
+                f != null ? f.getId() : null,
+                f != null ? f.getNumero() : null
         );
     }
 }

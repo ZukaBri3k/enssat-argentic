@@ -2,7 +2,11 @@ package fr.goat.argentic.service;
 
 import fr.goat.argentic.dto.SeanceResponse;
 import fr.goat.argentic.exception.RegleMetierException;
+import fr.goat.argentic.exception.ResourceNotFoundException;
+import fr.goat.argentic.model.Facture;
+import fr.goat.argentic.model.Seance;
 import fr.goat.argentic.model.StatutSeance;
+import fr.goat.argentic.repository.FactureRepository;
 import fr.goat.argentic.repository.SeanceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,6 +21,7 @@ import java.util.List;
 public class SeanceService {
 
     private final SeanceRepository seanceRepository;
+    private final FactureRepository factureRepository;
 
     // lister les séances avec filtres (période du/au, photographe, client, statut)
     public List<SeanceResponse> getSeance(LocalDate du, LocalDate au, Long idPhotographe, Long idClient, StatutSeance statutSeance) {
@@ -29,6 +34,11 @@ public class SeanceService {
                 .toList();
     }
 
-    // TODO: récupérer une séance par son id (ou lever ResourceNotFoundException)
+    public SeanceResponse getSeanceById(Long idSeance) {
+        Seance seance = seanceRepository.getSeanceById(idSeance)
+                .orElseThrow(() -> new ResourceNotFoundException("Séance non trouvée avec l'id : " + idSeance));
+        Facture facture = factureRepository.findBySeanceId(idSeance).orElse(null);
+        return SeanceResponse.fromEntity(seance, facture);
+    }
 
 }
