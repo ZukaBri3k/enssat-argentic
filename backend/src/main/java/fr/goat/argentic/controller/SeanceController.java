@@ -9,10 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -48,6 +45,16 @@ public class SeanceController {
         return ResponseEntity.ok(seanceService.getSeance(du, au, idPhotographe, idClient, statutSeance));
     }
 
-    // TODO: GET /seances/{id} (avec photographe, client, spécialité, fin calculée, facture éventuelle)
+    @GetMapping("/{id}")
+    @Operation(
+            summary = "Séances par id",
+            description = "Retourne le détail d'une séance (avec photographe, client, spécialité, fin calculée et facture éventuelle)."
+    )
+    public ResponseEntity<SeanceResponse> getSeanceById(
+            @Parameter(description = "Identifiant de la séance", example = "1")
+            @PathVariable("id") Long idSeance
+    ) {
+        return ResponseEntity.ok(seanceService.getSeanceById(idSeance));
+    }
 
 }
