@@ -59,10 +59,9 @@ public class ClientController {
             summary = "Modifier un client",
             description = "Modifier un client depuis son id"
     )
-
     public ResponseEntity<ClientResponse> updateClient(@Valid @RequestBody ClientRequest request, @PathVariable Long id) {
         ClientResponse cree = clientService.updateClient(id, request);
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(cree);
+        return ResponseEntity.ok(cree);
     }
 
 
