@@ -116,7 +116,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RegleMetierException.class)
     public ProblemDetail handleRegleMetierException(RegleMetierException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-        problem.setTitle("Règle métier violée");
+        problem.setTitle("Oups Nous avons rencontré un problème :");
         problem.setType(URI.create("urn:problem-type:conflict"));
         return problem;
     }
