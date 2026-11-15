@@ -129,6 +129,30 @@ export interface SeanceFilters {
   photographeId?: number | string;
   clientId?: number | string;
   statut?: StatutSeance | "";
+export type TypeClient = "PARTICULIER" | "ENTREPRISE";
+
+export interface Client {
+  id: number;
+  type: TypeClient;
+  email: string;
+  adressePostale: string;
+  identite: string;
+  // Spécifique Particulier
+  nom?: string;
+  prenom?: string;
+  // Spécifique Entreprise
+  raisonSociale?: string;
+  numeroSirenTva?: string;
+}
+
+export interface ClientRequest {
+  type: TypeClient;
+  email: string;
+  adressePostale: string;
+  nom?: string;
+  prenom?: string;
+  raisonSociale?: string;
+  numeroSirenTva?: string;
 }
 
 export interface TopPhotographeSeances {
@@ -341,6 +365,27 @@ export async function apiDesactiverPhotographe(id: number): Promise<Photographe>
 
 export async function apiActiverPhotographe(id: number): Promise<Photographe> {
   return api.post<Photographe>(`/photographes/${id}/activation`);
+}
+
+// Endpoints Clients
+export async function apiGetClients(): Promise<Client[]> {
+  return api.get<Client[]>("/clients");
+}
+
+export async function apiGetClient(id: number): Promise<Client> {
+  return api.get<Client>(`/clients/${id}`);
+}
+
+export async function apiCreateClient(request: ClientRequest): Promise<Client> {
+  return api.post<Client>("/clients", request);
+}
+
+export async function apiUpdateClient(id: number, request: ClientRequest): Promise<Client> {
+  return api.put<Client>(`/clients/${id}`, request);
+}
+
+export async function apiDeleteClient(id: number): Promise<void> {
+  return api.delete<void>(`/clients/${id}`);
 }
 
 export async function apiGetStatsPing(): Promise<{ status: string }> {

@@ -22,6 +22,8 @@ public interface SeanceRepository extends JpaRepository<Seance, Long> {
 
     boolean existsByPhotographeId(Long photographeId);
 
+    boolean existsByClientId(Long clientId);
+
     // Parmi les spécialités données, celles pour lesquelles le photographe a une séance non annulée débutant après (date, heure)
     @Query("""
             SELECT DISTINCT s.specialite
@@ -121,4 +123,21 @@ public interface SeanceRepository extends JpaRepository<Seance, Long> {
             WHERE s.id = :idSeance
             """)
     Optional<Seance> getSeanceById(@Param("idSeance") Long idSeance);
+    // Séances du photographe dans les statuts donnés débutant après (date, heure), client et spécialité chargés
+    @Query("""
+            SELECT s
+            FROM Seance s
+            JOIN FETCH s.client
+            JOIN FETCH s.specialite
+            WHERE s.client.id = :clientId
+              AND s.statut IN :statuts
+              AND (s.date > :date OR (s.date = :date AND s.heureDebut > :heure))
+            ORDER BY s.date, s.heureDebut
+            """)
+    List<Seance> findClientSeancesAVenir(
+            @Param("clientId") Long clientId,
+            @Param("statuts") Collection<StatutSeance> statuts,
+            @Param("date") LocalDate date,
+            @Param("heure") LocalTime heure
+    );
 }
