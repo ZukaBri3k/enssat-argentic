@@ -4,6 +4,7 @@ import fr.goat.argentic.dto.SeanceResponse;
 import fr.goat.argentic.dto.TopPhotographeDureeResponse;
 import fr.goat.argentic.dto.TopPhotographeSeancesResponse;
 import fr.goat.argentic.model.Seance;
+import fr.goat.argentic.model.Specialite;
 import fr.goat.argentic.model.StatutSeance;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,11 +12,49 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 
 public interface SeanceRepository extends JpaRepository<Seance, Long> {
+
+    boolean existsByPhotographeId(Long photographeId);
+
+    // Parmi les spécialités données, celles pour lesquelles le photographe a une séance non annulée débutant après (date, heure)
+    @Query("""
+            SELECT DISTINCT s.specialite
+            FROM Seance s
+            WHERE s.photographe.id = :photographeId
+              AND s.specialite.id IN :specialiteIds
+              AND s.statut <> fr.goat.argentic.model.StatutSeance.ANNULEE
+              AND (s.date > :date OR (s.date = :date AND s.heureDebut > :heure))
+            """)
+    List<Specialite> findSpecialitesAvecSeancesAVenir(
+            @Param("photographeId") Long photographeId,
+            @Param("specialiteIds") Collection<Long> specialiteIds,
+            @Param("date") LocalDate date,
+            @Param("heure") LocalTime heure
+    );
+
+    // Séances du photographe dans les statuts donnés débutant après (date, heure), client et spécialité chargés
+    @Query("""
+            SELECT s
+            FROM Seance s
+            JOIN FETCH s.client
+            JOIN FETCH s.specialite
+            WHERE s.photographe.id = :photographeId
+              AND s.statut IN :statuts
+              AND (s.date > :date OR (s.date = :date AND s.heureDebut > :heure))
+            ORDER BY s.date, s.heureDebut
+            """)
+    List<Seance> findSeancesAVenir(
+            @Param("photographeId") Long photographeId,
+            @Param("statuts") Collection<StatutSeance> statuts,
+            @Param("date") LocalDate date,
+            @Param("heure") LocalTime heure
+    );
 
     @Query("""
             SELECT new fr.goat.argentic.dto.TopPhotographeSeancesResponse(
