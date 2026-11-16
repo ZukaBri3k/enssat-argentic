@@ -1,9 +1,6 @@
 package fr.goat.argentic.controller;
 
-import fr.goat.argentic.dto.ClientRequest;
-import fr.goat.argentic.dto.SeanceRequest;
-import fr.goat.argentic.dto.SeanceResponse;
-import fr.goat.argentic.dto.StatutSeanceRequest;
+import fr.goat.argentic.dto.*;
 import fr.goat.argentic.model.StatutSeance;
 import fr.goat.argentic.service.SeanceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -94,12 +91,41 @@ public class SeanceController {
     }
 
     @PostMapping
-    @Operation(summary = "Créer une séance",
-            description = "Créer une séance"
+    @Operation(
+            summary = "Créer une séance",
+            description = "Crée une séance au statut initial PLANIFIEE. Début (date + heure) doit être >= maintenant. La séance ne peut pas dépasser minuit. Le photographe doit être actif et posséder la spécialité. Pas de chevauchement avec une autre séance non ANNULEE du photographe."
     )
+    @ApiResponse(responseCode = "201", description = "Séance créée avec succès")
+    @ApiResponse(responseCode = "400", description = "Données invalides ou manquantes",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "Photographe, client ou spécialité introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "409", description = "Règle métier violée (début dans le passé, dépasse minuit, photographe inactif ou sans spécialité, chevauchement)",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<SeanceResponse> createSeance(@Valid @RequestBody SeanceRequest request) {
         SeanceResponse cree = seanceService.addSeance(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(cree);
+    }
+
+    @PutMapping("/{id}")
+    @Operation(
+            summary = "Modifier une séance",
+            description = "Modifie une séance existante. Refusé (409) si la séance est TERMINEE ou ANNULEE. Début >= maintenant. La séance ne peut pas dépasser minuit. Le photographe doit être actif et posséder la spécialité. Pas de chevauchement avec une autre séance non ANNULEE du même photographe (en excluant la séance elle-même)."
+    )
+    @ApiResponse(responseCode = "200", description = "Séance modifiée avec succès")
+    @ApiResponse(responseCode = "400", description = "Données ou identifiant invalides",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "Séance, photographe, client ou spécialité introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "409", description = "Séance TERMINEE ou ANNULEE, début dans le passé, dépasse minuit, photographe inactif ou sans spécialité, chevauchement",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<SeanceResponse> updateSeance(
+            @Parameter(description = "Identifiant de la séance à modifier", example = "1")
+            @PathVariable("id") Long id,
+            @Valid @RequestBody SeanceRequest request
+    ) {
+        SeanceResponse cree = seanceService.updateSeance(id, request);
+        return ResponseEntity.ok(cree);
     }
 
     @DeleteMapping("/{id}")

@@ -1,5 +1,7 @@
 package fr.goat.argentic.service;
 
+import fr.goat.argentic.dto.ClientRequest;
+import fr.goat.argentic.dto.ClientResponse;
 import fr.goat.argentic.dto.SeanceRequest;
 import fr.goat.argentic.dto.SeanceResponse;
 import fr.goat.argentic.exception.DonneeInvalideException;
@@ -161,5 +163,53 @@ public class SeanceService {
             throw new RegleMetierException("Une séance ne peut pas dépasser minuit (fin au plus tard à 24:00 le même jour).");
         }
         verifierChevauchement(seanceIdAExclure, request.photographeId(), request.date(), debut, fin);
+    }
+
+    @Transactional
+    public SeanceResponse updateSeance(Long id, @Valid SeanceRequest request) {
+        if (request == null) {
+            throw new DonneeInvalideException("request", "La requête est obligatoire");
+        }
+
+        Seance seance = trouverSeance(id);
+
+        if (!seance.estModifiable()) {
+            throw new RegleMetierException("Impossible de modifier une séance " + seance.getStatut()
+                    + " (seules les séances PLANIFIEE ou CONFIRMEE sont modifiables).");
+        }
+
+        validerHorairesEtConflits(id, request);
+
+        Photographe p = photographeRepository.findById(request.photographeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Photographe introuvable : " + request.photographeId()));
+
+        Client c = clientRepository.findById(request.clientId())
+                .orElseThrow(() -> new ResourceNotFoundException("Client introuvable : " + request.clientId()));
+
+        Specialite s = specialiteRepository.findById(request.specialiteId())
+                .orElseThrow(() -> new ResourceNotFoundException("Spécialité introuvable : " + request.specialiteId()));
+
+        if (!p.isActif()) {
+            throw new RegleMetierException("Impossible d'assigner un photographe inactif à une séance.");
+        }
+
+        if (!p.possedeSpecialite(s)) {
+            throw new RegleMetierException(String.format(
+                    "Le photographe %s ne possède pas la spécialité '%s'.",
+                    p.getNom(), s.getLibelle()
+            ));
+        }
+
+        seance.setDate(request.date());
+        seance.setHeureDebut(request.heureDebut());
+        seance.setDureeMinutes(request.dureeMinutes());
+        seance.setLieu(request.lieu());
+        seance.setPhotographe(p);
+        seance.setClient(c);
+        seance.setSpecialite(s);
+
+        Seance updated = seanceRepository.save(seance);
+        Facture facture = factureRepository.findBySeanceId(id).orElse(null);
+        return SeanceResponse.fromEntity(updated, facture);
     }
 }
