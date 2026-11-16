@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  apiChangerStatutSeance,
+  apiDeleteSeance,
   apiGetClients,
   apiGetPhotographes,
   apiGetSeanceById,
@@ -11,6 +13,7 @@ import {
   type StatutPaiement,
   type StatutSeance,
 } from "@/lib/api";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { useToast } from "@/components/shared/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -24,9 +27,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Ban,
   Calendar,
   CalendarDays,
   Camera,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -37,10 +42,12 @@ import {
   LayoutGrid,
   List,
   Loader2,
+  Lock,
   MapPin,
   RefreshCw,
   RotateCcw,
   Tag,
+  Trash2,
   User,
   Users,
   X,
@@ -319,8 +326,70 @@ function extractFacture(s: SeanceResponse): FactureSummary | null {
   return null;
 }
 
+// Transitions de statut possibles conformément aux règles métier :
+// PLANIFIEE -> CONFIRMEE | ANNULEE ; CONFIRMEE -> TERMINEE | ANNULEE ; TERMINEE et ANNULEE finaux
+const TRANSITIONS_POSSIBLES: Record<StatutSeance, StatutSeance[]> = {
+  PLANIFIEE: ["CONFIRMEE", "ANNULEE"],
+  CONFIRMEE: ["TERMINEE", "ANNULEE"],
+  TERMINEE: [],
+  ANNULEE: [],
+};
+
+interface TransitionActionMeta {
+  target: StatutSeance;
+  label: string;
+  shortLabel: string;
+  buttonClass: string;
+}
+
+const TRANSITION_META: Record<StatutSeance, TransitionActionMeta> = {
+  PLANIFIEE: {
+    target: "PLANIFIEE",
+    label: "Planifier",
+    shortLabel: "Planifier",
+    buttonClass:
+      "border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-200 dark:hover:bg-blue-900/60",
+  },
+  CONFIRMEE: {
+    target: "CONFIRMEE",
+    label: "Confirmer la séance",
+    shortLabel: "Confirmer",
+    buttonClass:
+      "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200 dark:hover:bg-emerald-900/60",
+  },
+  TERMINEE: {
+    target: "TERMINEE",
+    label: "Marquer terminée",
+    shortLabel: "Terminer",
+    buttonClass:
+      "border-purple-300 bg-purple-50 text-purple-800 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/60 dark:text-purple-200 dark:hover:bg-purple-900/60",
+  },
+  ANNULEE: {
+    target: "ANNULEE",
+    label: "Annuler la séance",
+    shortLabel: "Annuler",
+    buttonClass:
+      "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200 dark:hover:bg-rose-900/60",
+  },
+};
+
+function isSeanceFinPassee(s: SeanceResponse): boolean {
+  if (s.fin) {
+    const finDate = new Date(s.fin);
+    if (!Number.isNaN(finDate.getTime())) {
+      return finDate.getTime() <= Date.now();
+    }
+  }
+  const dateStr = extractSeanceDate(s);
+  const heureFin = extractHeureFin(s);
+  if (!dateStr || !heureFin) return false;
+  const finDate = new Date(`${dateStr}T${heureFin}:00`);
+  if (Number.isNaN(finDate.getTime())) return false;
+  return finDate.getTime() <= Date.now();
+}
+
 export function SeancesPage() {
-  const { showApiError } = useToast();
+  const { success, showApiError } = useToast();
 
   // Mode d'affichage : Semaine (défaut), Jour ou Liste
   const [viewMode, setViewMode] = useState<ViewMode>("semaine");
@@ -350,6 +419,13 @@ export function SeancesPage() {
   const [seanceDetail, setSeanceDetail] = useState<SeanceResponse | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<unknown>(null);
+
+  // État pour le changement de statut (PATCH /seances/{id}/statut)
+  const [changingStatutKey, setChangingStatutKey] = useState<string | null>(null);
+
+  // État pour la suppression avec confirmation (DELETE /seances/{id})
+  const [seanceToDelete, setSeanceToDelete] = useState<SeanceResponse | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Calcul des bornes de la semaine courante (Lundi -> Dimanche)
   const mondayOfWeek = useMemo(() => getMondayOfWeek(referenceDate), [referenceDate]);
@@ -571,6 +647,78 @@ export function SeancesPage() {
     setDetailError(null);
     setLoadingDetail(false);
   }, []);
+
+  // Changement de statut d'une séance via PATCH /seances/{id}/statut
+  const handleChangerStatut = useCallback(
+    async (seance: SeanceResponse, nouveauStatut: StatutSeance) => {
+      const actionKey = `${seance.id}-${nouveauStatut}`;
+      setChangingStatutKey(actionKey);
+      if (selectedSeanceId === seance.id) {
+        setDetailError(null);
+      } else {
+        setSeancesError(null);
+      }
+
+      try {
+        const updated = await apiChangerStatutSeance(seance.id, nouveauStatut);
+        setSeances((prev) =>
+          prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
+        );
+        if (selectedSeanceId === seance.id) {
+          setSeanceDetail((prev) => (prev ? { ...prev, ...updated } : updated));
+        }
+        success(
+          "Statut mis à jour",
+          `La séance #${seance.id} est passée au statut « ${STATUT_STYLES[nouveauStatut].label} ».`
+        );
+      } catch (err) {
+        if (selectedSeanceId === seance.id) {
+          setDetailError(err);
+        } else {
+          setSeancesError(err);
+        }
+        showApiError(err, "Impossible de modifier le statut de la séance");
+      } finally {
+        setChangingStatutKey(null);
+      }
+    },
+    [selectedSeanceId, showApiError, success]
+  );
+
+  // Suppression d'une séance après confirmation via DELETE /seances/{id}
+  const handleConfirmDelete = useCallback(async () => {
+    if (!seanceToDelete) return;
+    const target = seanceToDelete;
+    setIsDeleting(true);
+    if (selectedSeanceId === target.id) {
+      setDetailError(null);
+    } else {
+      setSeancesError(null);
+    }
+
+    try {
+      await apiDeleteSeance(target.id);
+      setSeances((prev) => prev.filter((item) => item.id !== target.id));
+      if (selectedSeanceId === target.id) {
+        handleCloseDetail();
+      }
+      setSeanceToDelete(null);
+      success(
+        "Séance supprimée",
+        `La séance #${target.id} (${extractSpecialiteLibelle(target)} – ${extractClientNom(target)}) a été supprimée.`
+      );
+    } catch (err) {
+      setSeanceToDelete(null);
+      if (selectedSeanceId === target.id) {
+        setDetailError(err);
+      } else {
+        setSeancesError(err);
+      }
+      showApiError(err, "Suppression de la séance refusée");
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [seanceToDelete, selectedSeanceId, handleCloseDetail, showApiError, success]);
 
   // Navigation temporelle
   const goToPrevious = () => {
@@ -1438,16 +1586,65 @@ export function SeancesPage() {
                             className="py-3 px-4 text-right whitespace-nowrap"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="xs"
-                              onClick={() => void handleOpenDetail(seance)}
-                              className="cursor-pointer gap-1"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Détails</span>
-                            </Button>
+                            <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                              {(TRANSITIONS_POSSIBLES[seance.statut] ?? []).map(
+                                (targetStatut) => {
+                                  const meta = TRANSITION_META[targetStatut];
+                                  const isBusy =
+                                    changingStatutKey ===
+                                    `${seance.id}-${targetStatut}`;
+                                  return (
+                                    <button
+                                      key={targetStatut}
+                                      type="button"
+                                      disabled={changingStatutKey !== null}
+                                      onClick={() =>
+                                        void handleChangerStatut(
+                                          seance,
+                                          targetStatut
+                                        )
+                                      }
+                                      title={meta.label}
+                                      className={`cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50 ${meta.buttonClass}`}
+                                    >
+                                      {isBusy ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : targetStatut === "ANNULEE" ? (
+                                        <Ban className="w-3 h-3" />
+                                      ) : (
+                                        <Check className="w-3 h-3" />
+                                      )}
+                                      <span>{meta.shortLabel}</span>
+                                    </button>
+                                  );
+                                }
+                              )}
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                onClick={() => void handleOpenDetail(seance)}
+                                className="cursor-pointer gap-1"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Détails</span>
+                              </Button>
+
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="xs"
+                                onClick={() => setSeanceToDelete(seance)}
+                                title="Supprimer la séance"
+                                className="cursor-pointer gap-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span className="sr-only sm:not-sr-only">
+                                  Supprimer
+                                </span>
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1753,10 +1950,117 @@ export function SeancesPage() {
                         );
                       })()}
                     </div>
+
+                    {/* Bloc 4 : Changement de statut (uniquement les transitions possibles) */}
+                    <div className="p-4 rounded-xl border border-border bg-card space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <RefreshCw className="w-3.5 h-3.5 text-primary" />
+                          <span>Changement de statut</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          Statut actuel :{" "}
+                          <strong className="text-foreground">
+                            {(
+                              STATUT_STYLES[seanceDetail.statut] ??
+                              STATUT_STYLES.PLANIFIEE
+                            ).label}
+                          </strong>
+                        </span>
+                      </div>
+
+                      {(() => {
+                        const transitions =
+                          TRANSITIONS_POSSIBLES[seanceDetail.statut] ?? [];
+
+                        if (transitions.length === 0) {
+                          return (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-2.5 rounded-lg border border-border">
+                              <Lock className="w-3.5 h-3.5 shrink-0" />
+                              <span>
+                                Le statut{" "}
+                                <strong>
+                                  {
+                                    (
+                                      STATUT_STYLES[seanceDetail.statut] ??
+                                      STATUT_STYLES.PLANIFIEE
+                                    ).label
+                                  }
+                                </strong>{" "}
+                                est final : aucune transition de statut
+                                supplémentaire n'est possible.
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        const finPassee = isSeanceFinPassee(seanceDetail);
+
+                        return (
+                          <div className="space-y-2.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {transitions.map((targetStatut) => {
+                                const meta = TRANSITION_META[targetStatut];
+                                const isBusy =
+                                  changingStatutKey ===
+                                  `${seanceDetail.id}-${targetStatut}`;
+                                return (
+                                  <button
+                                    key={targetStatut}
+                                    type="button"
+                                    disabled={changingStatutKey !== null}
+                                    onClick={() =>
+                                      void handleChangerStatut(
+                                        seanceDetail,
+                                        targetStatut
+                                      )
+                                    }
+                                    className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${meta.buttonClass}`}
+                                  >
+                                    {isBusy ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : targetStatut === "ANNULEE" ? (
+                                      <Ban className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                    )}
+                                    <span>{meta.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {seanceDetail.statut === "CONFIRMEE" && !finPassee && (
+                              <p className="text-[11px] text-muted-foreground">
+                                Note : le passage à « Terminée » n'est accepté
+                                par le serveur que lorsque la fin de la séance (
+                                {extractFinIsoOrFormatted(seanceDetail)}) est
+                                passée.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </>
                 )}
 
-                <div className="flex justify-end pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
+                  {seanceDetail ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setSeanceToDelete(seanceDetail)}
+                      className="cursor-pointer gap-1.5"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Supprimer la séance</span>
+                    </Button>
+                  ) : (
+                    <div />
+                  )}
+
                   <Button
                     type="button"
                     variant="outline"
@@ -1771,6 +2075,33 @@ export function SeancesPage() {
           </div>
         </div>
       )}
+
+      {/* ==================== MODALE DE CONFIRMATION DE SUPPRESSION ==================== */}
+      <ConfirmDialog
+        open={seanceToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setSeanceToDelete(null);
+        }}
+        title="Supprimer cette séance ?"
+        description={
+          seanceToDelete
+            ? `Vous êtes sur le point de supprimer définitivement la séance #${seanceToDelete.id} (${extractSpecialiteLibelle(
+                seanceToDelete
+              )} pour ${extractClientNom(
+                seanceToDelete
+              )} le ${formatDateShortFr(
+                extractSeanceDate(seanceToDelete)
+              )} à ${extractHeureDebut(
+                seanceToDelete
+              )}). Si une facture est associée à cette séance, la suppression sera refusée par le serveur.`
+            : undefined
+        }
+        confirmLabel="Supprimer définitivement"
+        cancelLabel="Annuler"
+        variant="destructive"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }
