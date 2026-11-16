@@ -140,4 +140,10 @@ public interface SeanceRepository extends JpaRepository<Seance, Long> {
             @Param("date") LocalDate date,
             @Param("heure") LocalTime heure
     );
+    
+    List<Seance> findByPhotographeIdAndDateAndStatutNot(
+            Long photographeId,
+            LocalDate date,
+            StatutSeance statutExclu
+    );
 }

@@ -1,5 +1,6 @@
 package fr.goat.argentic.service;
 
+import fr.goat.argentic.dto.SeanceRequest;
 import fr.goat.argentic.dto.SeanceResponse;
 import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
@@ -12,8 +13,11 @@ import fr.goat.argentic.model.PrestationFacturee;
 import fr.goat.argentic.model.Seance;
 import fr.goat.argentic.model.Specialite;
 import fr.goat.argentic.model.StatutSeance;
+import fr.goat.argentic.repository.ClientRepository;
 import fr.goat.argentic.repository.FactureRepository;
+import fr.goat.argentic.repository.PhotographeRepository;
 import fr.goat.argentic.repository.SeanceRepository;
+import fr.goat.argentic.repository.SpecialiteRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,6 +52,15 @@ class SeanceServiceTest {
 
     @Mock
     private FactureRepository factureRepository;
+
+    @Mock
+    private PhotographeRepository photographeRepository;
+
+    @Mock
+    private ClientRepository clientRepository;
+
+    @Mock
+    private SpecialiteRepository specialiteRepository;
 
     @InjectMocks
     private SeanceService seanceService;
@@ -384,5 +397,262 @@ class SeanceServiceTest {
 
         verifyNoInteractions(factureRepository);
         verify(seanceRepository, never()).delete(any());
+    }
+
+    // ==================== Tests des règles métier de création et modification (#10) ====================
+
+    @Test
+    @DisplayName("Règle métier : une séance nouvellement instanciée a le statut initial PLANIFIEE")
+    void creationSeance_statutInitial_doitEtrePlanifiee() {
+        Seance nouvelle = new Seance(
+                photographe,
+                client,
+                specialite,
+                LocalDate.now().plusDays(3),
+                LocalTime.of(10, 0),
+                120,
+                "Studio Argentic, Lannion"
+        );
+
+        assertThat(nouvelle.getStatut()).isEqualTo(StatutSeance.PLANIFIEE);
+        assertThat(nouvelle.estModifiable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Règle métier : seules les séances PLANIFIEE et CONFIRMEE sont modifiables (TERMINEE et ANNULEE refusées)")
+    void estModifiable_selonStatut_doitRespecterStatutsFinaux() {
+        seance.setStatut(StatutSeance.PLANIFIEE);
+        assertThat(seance.estModifiable()).isTrue();
+
+        seance.setStatut(StatutSeance.CONFIRMEE);
+        assertThat(seance.estModifiable()).isTrue();
+
+        seance.setStatut(StatutSeance.TERMINEE);
+        assertThat(seance.estModifiable()).isFalse();
+
+        seance.setStatut(StatutSeance.ANNULEE);
+        assertThat(seance.estModifiable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Règle métier : contrôle que le début (date + heure) est dans le futur")
+    void estAVenir_debutDansLeFuturOuPasse_doitVerifierCorrectement() {
+        LocalDateTime maintenant = LocalDateTime.of(2026, 11, 20, 12, 0);
+
+        Seance future = new Seance(photographe, client, specialite,
+                LocalDate.of(2026, 11, 20), LocalTime.of(14, 0), 60, "Lieu");
+        Seance passee = new Seance(photographe, client, specialite,
+                LocalDate.of(2026, 11, 20), LocalTime.of(10, 0), 60, "Lieu");
+
+        assertThat(future.estAVenir(maintenant)).isTrue();
+        assertThat(passee.estAVenir(maintenant)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Règle métier : une séance ne doit pas dépasser minuit (fin le même jour ou 00:00 pile)")
+    void depassementMinuit_finMemeJourOuLendemain_doitCalculerCorrectement() {
+        // 22:00 + 120 min = 00:00 (24:00 pile, ne dépasse pas minuit)
+        Seance jusquAMinuit = new Seance(photographe, client, specialite,
+                LocalDate.of(2026, 11, 20), LocalTime.of(22, 0), 120, "Lieu");
+        assertThat(jusquAMinuit.getFin()).isEqualTo(LocalDateTime.of(2026, 11, 21, 0, 0));
+
+        // 22:30 + 120 min = 00:30 le lendemain (dépasse minuit -> interdit)
+        Seance depasseMinuit = new Seance(photographe, client, specialite,
+                LocalDate.of(2026, 11, 20), LocalTime.of(22, 30), 120, "Lieu");
+        assertThat(depasseMinuit.getFin().toLocalDate()).isAfter(depasseMinuit.getDate());
+        assertThat(depasseMinuit.getFin().toLocalTime()).isAfter(LocalTime.MIDNIGHT);
+    }
+
+    @Test
+    @DisplayName("Règle métier : le photographe doit être actif et posséder la spécialité de la séance")
+    void photographe_actifEtPossedeSpecialite_doitVerifierCorrectement() {
+        Specialite autreSpecialite = new Specialite("Reportage");
+        autreSpecialite.setId(1L);
+
+        assertThat(photographe.isActif()).isTrue();
+        assertThat(photographe.possedeSpecialite(specialite)).isTrue();
+        assertThat(photographe.possedeSpecialite(autreSpecialite)).isFalse();
+
+        photographe.desactiver();
+        assertThat(photographe.isActif()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Règle métier : détection de chevauchement entre deux séances du même jour")
+    void chevauche_creneauxQuiSeChevauchentOuSeSuivent_doitDetecterConflit() {
+        // Séance existante : 14:00 -> 16:00
+        Seance existante = new Seance(photographe, client, specialite,
+                LocalDate.of(2026, 11, 20), LocalTime.of(14, 0), 120, "Lieu A");
+
+        // Chevauchement partiel (15:00 -> 17:00)
+        Seance chevauchante = new Seance(photographe, client, specialite,
+                LocalDate.of(2026, 11, 20), LocalTime.of(15, 0), 120, "Lieu B");
+        assertThat(existante.chevauche(chevauchante)).isTrue();
+
+        // Séances consécutives sans chevauchement (16:00 -> 18:00)
+        Seance consecutive = new Seance(photographe, client, specialite,
+                LocalDate.of(2026, 11, 20), LocalTime.of(16, 0), 120, "Lieu C");
+        assertThat(existante.chevauche(consecutive)).isFalse();
+    }
+
+    // ==================== Tests des règles métier addSeance & updateSeance (#10) ====================
+
+    @Test
+    @DisplayName("addSeance crée une séance au statut initial PLANIFIEE lorsque toutes les règles métier sont respectées")
+    void addSeance_valide_doitCreerSeancePlanifiee() {
+        LocalDate dateFuture = LocalDate.now().plusDays(5);
+        SeanceRequest req = new SeanceRequest(dateFuture, LocalTime.of(10, 0), 120, "Studio Lannion", 2L, 10L, 20L);
+
+        when(photographeRepository.findById(10L)).thenReturn(Optional.of(photographe));
+        when(clientRepository.findById(20L)).thenReturn(Optional.of(client));
+        when(specialiteRepository.findById(2L)).thenReturn(Optional.of(specialite));
+        when(seanceRepository.findByPhotographeIdAndDateAndStatutNot(10L, dateFuture, StatutSeance.ANNULEE))
+                .thenReturn(List.of());
+        when(seanceRepository.save(any(Seance.class))).thenAnswer(inv -> {
+            Seance s = inv.getArgument(0);
+            s.setId(42L);
+            return s;
+        });
+
+        SeanceResponse res = seanceService.addSeance(req);
+
+        assertThat(res.id()).isEqualTo(42L);
+        assertThat(res.statut()).isEqualTo(StatutSeance.PLANIFIEE);
+        assertThat(res.photographeId()).isEqualTo(10L);
+        assertThat(res.clientId()).isEqualTo(20L);
+        verify(seanceRepository).save(any(Seance.class));
+    }
+
+    @Test
+    @DisplayName("addSeance lève RegleMetierException (409) si le début est dans le passé")
+    void addSeance_debutDansLePasse_doitLeverRegleMetierException() {
+        SeanceRequest req = new SeanceRequest(LocalDate.now().minusDays(1), LocalTime.of(10, 0), 60, "Studio", 2L, 10L, 20L);
+
+        assertThatThrownBy(() -> seanceService.addSeance(req))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("maintenant");
+
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("addSeance lève RegleMetierException (409) si la séance dépasse minuit")
+    void addSeance_depasseMinuit_doitLeverRegleMetierException() {
+        SeanceRequest req = new SeanceRequest(LocalDate.now().plusDays(2), LocalTime.of(23, 0), 120, "Studio", 2L, 10L, 20L);
+
+        assertThatThrownBy(() -> seanceService.addSeance(req))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("minuit");
+
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("addSeance lève RegleMetierException (409) si le photographe est inactif")
+    void addSeance_photographeInactif_doitLeverRegleMetierException() {
+        photographe.desactiver();
+        SeanceRequest req = new SeanceRequest(LocalDate.now().plusDays(2), LocalTime.of(10, 0), 60, "Studio", 2L, 10L, 20L);
+
+        when(photographeRepository.findById(10L)).thenReturn(Optional.of(photographe));
+        when(clientRepository.findById(20L)).thenReturn(Optional.of(client));
+        when(specialiteRepository.findById(2L)).thenReturn(Optional.of(specialite));
+
+        assertThatThrownBy(() -> seanceService.addSeance(req))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("inactif");
+
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("addSeance lève RegleMetierException (409) si le photographe ne possède pas la spécialité")
+    void addSeance_photographeSansSpecialite_doitLeverRegleMetierException() {
+        Specialite reportage = new Specialite("Reportage");
+        reportage.setId(1L);
+        SeanceRequest req = new SeanceRequest(LocalDate.now().plusDays(2), LocalTime.of(10, 0), 60, "Studio", 1L, 10L, 20L);
+
+        when(photographeRepository.findById(10L)).thenReturn(Optional.of(photographe));
+        when(clientRepository.findById(20L)).thenReturn(Optional.of(client));
+        when(specialiteRepository.findById(1L)).thenReturn(Optional.of(reportage));
+
+        assertThatThrownBy(() -> seanceService.addSeance(req))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("ne possède pas la spécialité");
+
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("addSeance lève RegleMetierException (409) en cas de chevauchement avec une autre séance non ANNULEE du photographe")
+    void addSeance_avecChevauchement_doitLeverRegleMetierException() {
+        LocalDate dateFuture = LocalDate.now().plusDays(5);
+        SeanceRequest req = new SeanceRequest(dateFuture, LocalTime.of(15, 0), 120, "Studio", 2L, 10L, 20L);
+
+        Seance existante = new Seance(photographe, client, specialite, dateFuture, LocalTime.of(14, 0), 120, "Lieu existant");
+        existante.setId(88L);
+
+        when(photographeRepository.findById(10L)).thenReturn(Optional.of(photographe));
+        when(clientRepository.findById(20L)).thenReturn(Optional.of(client));
+        when(specialiteRepository.findById(2L)).thenReturn(Optional.of(specialite));
+        when(seanceRepository.findByPhotographeIdAndDateAndStatutNot(10L, dateFuture, StatutSeance.ANNULEE))
+                .thenReturn(List.of(existante));
+
+        assertThatThrownBy(() -> seanceService.addSeance(req))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("chevauche");
+
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateSeance met à jour tous les champs de la séance lorsque celle-ci est modifiable")
+    void updateSeance_valide_doitMettreAJour() {
+        LocalDate dateFuture = LocalDate.now().plusDays(3);
+        SeanceRequest req = new SeanceRequest(dateFuture, LocalTime.of(16, 0), 90, "Nouveau lieu", 2L, 10L, 20L);
+
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+        when(photographeRepository.findById(10L)).thenReturn(Optional.of(photographe));
+        when(clientRepository.findById(20L)).thenReturn(Optional.of(client));
+        when(specialiteRepository.findById(2L)).thenReturn(Optional.of(specialite));
+        when(seanceRepository.findByPhotographeIdAndDateAndStatutNot(10L, dateFuture, StatutSeance.ANNULEE))
+                .thenReturn(List.of(seance));
+        when(seanceRepository.save(any(Seance.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(factureRepository.findBySeanceId(1L)).thenReturn(Optional.empty());
+
+        SeanceResponse res = seanceService.updateSeance(1L, req);
+
+        assertThat(res.lieu()).isEqualTo("Nouveau lieu");
+        assertThat(res.dureeMinutes()).isEqualTo(90);
+        assertThat(res.heureDebut()).isEqualTo(LocalTime.of(16, 0));
+        assertThat(res.date()).isEqualTo(dateFuture);
+        verify(seanceRepository).save(seance);
+    }
+
+    @Test
+    @DisplayName("updateSeance lève RegleMetierException (409) si la séance est TERMINEE")
+    void updateSeance_statutTerminee_doitLeverRegleMetierException() {
+        seance.setStatut(StatutSeance.TERMINEE);
+        SeanceRequest req = new SeanceRequest(LocalDate.now().plusDays(5), LocalTime.of(10, 0), 120, "Nouveau lieu", 2L, 10L, 20L);
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+
+        assertThatThrownBy(() -> seanceService.updateSeance(1L, req))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("TERMINEE");
+
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("updateSeance lève RegleMetierException (409) si la séance est ANNULEE")
+    void updateSeance_statutAnnulee_doitLeverRegleMetierException() {
+        seance.setStatut(StatutSeance.ANNULEE);
+        SeanceRequest req = new SeanceRequest(LocalDate.now().plusDays(5), LocalTime.of(10, 0), 120, "Nouveau lieu", 2L, 10L, 20L);
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+
+        assertThatThrownBy(() -> seanceService.updateSeance(1L, req))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("ANNULEE");
+
+        verify(seanceRepository, never()).save(any());
     }
 }
