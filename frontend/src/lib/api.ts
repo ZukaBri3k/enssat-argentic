@@ -131,6 +131,16 @@ export interface SeanceFilters {
   statut?: StatutSeance | "";
 }
 
+export interface SeanceRequest {
+  date: string;
+  heureDebut: string;
+  dureeMinutes: number;
+  lieu: string;
+  specialiteId: number;
+  photographeId: number;
+  clientId: number;
+}
+
 export interface Client {
   id: number;
   type: TypeClient;
@@ -440,6 +450,33 @@ export async function apiGetSeances(filters: SeanceFilters = {}): Promise<Seance
 
 export async function apiGetSeanceById(id: number): Promise<SeanceResponse> {
   return api.get<SeanceResponse>(`/seances/${id}`);
+}
+
+export async function apiCreateSeance(request: SeanceRequest): Promise<SeanceResponse> {
+  const payload = {
+    ...request,
+    dateSeance: request.date,
+    duree: request.dureeMinutes,
+    idSpecialite: request.specialiteId,
+    idPhotographe: request.photographeId,
+    idClient: request.clientId,
+  };
+  return api.post<SeanceResponse>("/seances", payload);
+}
+
+export async function apiUpdateSeance(
+  id: number,
+  request: SeanceRequest
+): Promise<SeanceResponse> {
+  const payload = {
+    ...request,
+    dateSeance: request.date,
+    duree: request.dureeMinutes,
+    idSpecialite: request.specialiteId,
+    idPhotographe: request.photographeId,
+    idClient: request.clientId,
+  };
+  return api.put<SeanceResponse>(`/seances/${id}`, payload);
 }
 
 export async function apiChangerStatutSeance(

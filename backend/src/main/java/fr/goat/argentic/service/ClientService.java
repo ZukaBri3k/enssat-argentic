@@ -96,18 +96,14 @@ public class ClientService {
 
     @Transactional
     public ClientResponse updateClient(Long id, ClientRequest request) {
-        // 1. On charge le client existant en base (ou 404 s'il n'existe pas)
         Client client = clientRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Client introuvable : " + id));
 
-        // 2. On vérifie la règle métier avec instanceof :
         if (client instanceof ClientParticulier p) {
-            // En base c'est un PARTICULIER : est-ce que la requête essaie de le changer ?
             if (!"PARTICULIER".equalsIgnoreCase(request.type())) {
                 throw new RegleMetierException("Le type d'un client ne peut pas être modifié après création");
             }
 
-            // Tout va bien : on met à jour les champs propres au particulier
             if (request.nom() == null || request.nom().isBlank()) {
                 throw new DonneeInvalideException("nom", "Le nom est obligatoire pour un particulier");
             }
@@ -118,12 +114,10 @@ public class ClientService {
             p.setPrenom(request.prenom().trim());
 
         } else if (client instanceof ClientEntreprise e) {
-            // En base c'est une ENTREPRISE : est-ce que la requête essaie de la changer ?
             if (!"ENTREPRISE".equalsIgnoreCase(request.type())) {
                 throw new RegleMetierException("Le type d'un client ne peut pas être modifié après création");
             }
 
-            // Tout va bien : on met à jour les champs propres à l'entreprise
             if (request.raisonSociale() == null || request.raisonSociale().isBlank()) {
                 throw new DonneeInvalideException("raisonSociale", "La raison sociale est obligatoire pour une entreprise");
             }
@@ -134,11 +128,9 @@ public class ClientService {
             e.setNumeroSirenTva(request.numeroSirenTva().trim());
         }
 
-        // 3. On met à jour les champs communs aux deux types
         client.setEmail(request.email().trim());
         client.setAdressePostale(request.adressePostale().trim());
 
-        // 4. On sauvegarde et on renvoie le DTO à jour
         Client updated = clientRepository.save(client);
         return ClientResponse.fromEntity(updated);
     }

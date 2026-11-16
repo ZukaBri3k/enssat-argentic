@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ApiError,
   apiChangerStatutSeance,
+  apiCreateSeance,
   apiDeleteSeance,
   apiGetClients,
   apiGetPhotographes,
   apiGetSeanceById,
   apiGetSeances,
+  apiGetSpecialites,
+  apiUpdateSeance,
   type ClientSummary,
   type FactureSummary,
   type PhotographeSummary,
+  type SeanceRequest,
   type SeanceResponse,
+  type Specialite,
   type StatutPaiement,
   type StatutSeance,
 } from "@/lib/api";
@@ -27,6 +33,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  AlertTriangle,
   Ban,
   Calendar,
   CalendarDays,
@@ -44,6 +51,8 @@ import {
   Loader2,
   Lock,
   MapPin,
+  Pencil,
+  Plus,
   RefreshCw,
   RotateCcw,
   Tag,
@@ -314,6 +323,40 @@ function extractSpecialiteLibelle(s: SeanceResponse): string {
   );
 }
 
+function extractSpecialiteId(
+  s: SeanceResponse,
+  specialites: Specialite[]
+): number | undefined {
+  if (s.specialite?.id !== undefined) return s.specialite.id;
+  if (s.specialiteId !== undefined) return s.specialiteId;
+  const lib = extractSpecialiteLibelle(s);
+  return specialites.find((sp) => sp.libelle === lib)?.id;
+}
+
+function isSeanceModifiable(statut: StatutSeance): boolean {
+  return statut === "PLANIFIEE" || statut === "CONFIRMEE";
+}
+
+interface SeanceFormState {
+  date: string;
+  heureDebut: string;
+  dureeMinutes: string;
+  lieu: string;
+  specialiteId: string;
+  photographeId: string;
+  clientId: string;
+}
+
+const DUREE_PRESETS = [
+  { label: "30 min", value: 30 },
+  { label: "1 h", value: 60 },
+  { label: "1 h 30", value: 90 },
+  { label: "2 h", value: 120 },
+  { label: "3 h", value: 180 },
+  { label: "4 h", value: 240 },
+  { label: "8 h", value: 480 },
+];
+
 function extractFacture(s: SeanceResponse): FactureSummary | null {
   if (s.facture) return s.facture;
   if (s.factureId || s.factureNumero) {
@@ -388,6 +431,13 @@ function isSeanceFinPassee(s: SeanceResponse): boolean {
   return finDate.getTime() <= Date.now();
 }
 
+function isDebutSeancePasse(dateStr: string, heureDebut: string): boolean {
+  if (!dateStr || !heureDebut) return false;
+  const debutDate = new Date(`${dateStr}T${heureDebut}:00`);
+  if (Number.isNaN(debutDate.getTime())) return false;
+  return debutDate.getTime() < Date.now();
+}
+
 export function SeancesPage() {
   const { success, showApiError } = useToast();
 
@@ -413,12 +463,29 @@ export function SeancesPage() {
 
   const [photographesApi, setPhotographesApi] = useState<PhotographeSummary[]>([]);
   const [clientsApi, setClientsApi] = useState<ClientSummary[]>([]);
+  const [specialitesApi, setSpecialitesApi] = useState<Specialite[]>([]);
 
   // État pour la modale de détail d'une séance (GET /seances/{id})
   const [selectedSeanceId, setSelectedSeanceId] = useState<number | null>(null);
   const [seanceDetail, setSeanceDetail] = useState<SeanceResponse | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<unknown>(null);
+
+  // État pour le formulaire de création / modification (POST /seances & PUT /seances/{id})
+  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
+  const [editingSeance, setEditingSeance] = useState<SeanceResponse | null>(null);
+  const [formData, setFormData] = useState<SeanceFormState>(() => ({
+    date: toDateInputString(addDays(new Date(), 1)),
+    heureDebut: "10:00",
+    dureeMinutes: "120",
+    lieu: "",
+    specialiteId: "",
+    photographeId: "",
+    clientId: "",
+  }));
+  const [isSubmittingForm, setIsSubmittingForm] = useState<boolean>(false);
+  const [formError, setFormError] = useState<unknown>(null);
+  const [photographeNotice, setPhotographeNotice] = useState<string | null>(null);
 
   // État pour le changement de statut (PATCH /seances/{id}/statut)
   const [changingStatutKey, setChangingStatutKey] = useState<string | null>(null);
@@ -456,13 +523,14 @@ export function SeancesPage() {
     };
   }, [viewMode, mondayOfWeek, sundayOfWeek, referenceDate, listDu, listAu]);
 
-  // Chargement optionnel des listes de photographes et clients pour enrichir les filtres
+  // Chargement des référentiels (photographes, clients, spécialités) pour les filtres et le formulaire
   useEffect(() => {
     let mounted = true;
     async function loadFilterReferentials() {
-      const [pRes, cRes] = await Promise.allSettled([
+      const [pRes, cRes, sRes] = await Promise.allSettled([
         apiGetPhotographes(),
         apiGetClients(),
+        apiGetSpecialites(),
       ]);
       if (!mounted) return;
       if (pRes.status === "fulfilled" && Array.isArray(pRes.value)) {
@@ -470,6 +538,9 @@ export function SeancesPage() {
       }
       if (cRes.status === "fulfilled" && Array.isArray(cRes.value)) {
         setClientsApi(cRes.value);
+      }
+      if (sRes.status === "fulfilled" && Array.isArray(sRes.value)) {
+        setSpecialitesApi(sRes.value);
       }
     }
     void loadFilterReferentials();
@@ -562,6 +633,286 @@ export function SeancesPage() {
     }
     return Array.from(map.values()).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
   }, [clientsApi, seances]);
+
+  // Liste consolidée des spécialités (API + extraits des séances/photographes)
+  const specialiteOptions = useMemo(() => {
+    const map = new Map<number, Specialite>();
+    for (const sp of specialitesApi) {
+      if (sp.id !== undefined) {
+        map.set(sp.id, sp);
+      }
+    }
+    for (const p of photographesApi) {
+      for (const sp of p.specialites ?? []) {
+        if (sp.id !== undefined && !map.has(sp.id)) {
+          map.set(sp.id, sp);
+        }
+      }
+    }
+    for (const s of seances) {
+      if (s.specialite?.id !== undefined && !map.has(s.specialite.id)) {
+        map.set(s.specialite.id, s.specialite);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.libelle.localeCompare(b.libelle, "fr")
+    );
+  }, [specialitesApi, photographesApi, seances]);
+
+  // Photographes éligibles dans le formulaire : uniquement les photographes ACTIFS qui possèdent la spécialité sélectionnée
+  const eligiblePhotographesForForm = useMemo(() => {
+    const specId = Number(formData.specialiteId);
+    return photographesApi
+      .filter((p) => {
+        if (p.actif === false) return false;
+        if (!specId || Number.isNaN(specId)) return true;
+        if (!Array.isArray(p.specialites)) return true;
+        return p.specialites.some((sp) => sp.id === specId);
+      })
+      .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  }, [photographesApi, formData.specialiteId]);
+
+  // Vérifications en temps réel des règles métier sur les horaires et le chevauchement
+  const formValidationWarnings = useMemo(() => {
+    const messages: {
+      debutPasse?: string;
+      depasseMinuit?: string;
+      chevauchement?: string;
+      heureFinCalculee?: string;
+    } = {};
+
+    const startMin = formData.heureDebut ? timeToMinutes(formData.heureDebut) : NaN;
+    const duree = Number(formData.dureeMinutes);
+
+    if (!Number.isNaN(startMin) && !Number.isNaN(duree) && duree > 0) {
+      const endMin = startMin + duree;
+      if (endMin > 24 * 60) {
+        messages.depasseMinuit =
+          "La séance ne peut pas dépasser minuit (fin au plus tard à 24:00 le même jour). Réduisez la durée ou avancez l'heure de début.";
+      } else {
+        messages.heureFinCalculee = minutesToTime(endMin);
+      }
+
+      if (isDebutSeancePasse(formData.date, formData.heureDebut)) {
+        messages.debutPasse =
+          "La date et l'heure de début doivent être dans le futur (début ≥ maintenant).";
+      }
+
+      // Contrôle préventif de chevauchement avec les séances connues non ANNULEE du même photographe
+      const photoId = Number(formData.photographeId);
+      if (formData.date && photoId && !Number.isNaN(photoId) && endMin <= 24 * 60) {
+        const conflit = seances.find((s) => {
+          if (editingSeance && s.id === editingSeance.id) return false;
+          if (s.statut === "ANNULEE") return false;
+          if (extractPhotographeId(s) !== photoId) return false;
+          if (extractSeanceDate(s) !== formData.date) return false;
+          const sStart = timeToMinutes(extractHeureDebut(s));
+          const sEnd = sStart + extractDureeMinutes(s);
+          return startMin < sEnd && sStart < endMin;
+        });
+
+        if (conflit) {
+          messages.chevauchement = `Chevauchement détecté : ce photographe a déjà la séance #${conflit.id} (${extractHeureDebut(
+            conflit
+          )} – ${extractHeureFin(conflit)}, ${extractClientNom(conflit)}, ${
+            conflit.lieu
+          }) sur ce créneau.`;
+        }
+      }
+    }
+
+    return messages;
+  }, [
+    formData.date,
+    formData.heureDebut,
+    formData.dureeMinutes,
+    formData.photographeId,
+    seances,
+    editingSeance,
+  ]);
+
+  // Ouverture du formulaire de création d'une séance
+  const handleOpenCreateForm = useCallback(
+    (defaultDate?: Date) => {
+      const targetDate = defaultDate ?? addDays(new Date(), 1);
+      const defaultSpecId =
+        specialiteOptions.length > 0 ? String(specialiteOptions[0].id) : "";
+      const defaultEligiblePhotos = photographesApi.filter((p) => {
+        if (p.actif === false) return false;
+        if (!defaultSpecId) return true;
+        return p.specialites?.some((sp) => String(sp.id) === defaultSpecId);
+      });
+      const defaultPhotoId =
+        defaultEligiblePhotos.length > 0 ? String(defaultEligiblePhotos[0].id) : "";
+      const defaultClientId =
+        clientOptions.length > 0 ? String(clientOptions[0].id) : "";
+
+      setEditingSeance(null);
+      setFormError(null);
+      setPhotographeNotice(null);
+      setFormData({
+        date: toDateInputString(targetDate),
+        heureDebut: "10:00",
+        dureeMinutes: "120",
+        lieu: "",
+        specialiteId: defaultSpecId,
+        photographeId: defaultPhotoId,
+        clientId: defaultClientId,
+      });
+      setIsFormOpen(true);
+    },
+    [specialiteOptions, photographesApi, clientOptions]
+  );
+
+  // Ouverture du formulaire de modification d'une séance existante
+  const handleOpenEditForm = useCallback(
+    (seance: SeanceResponse) => {
+      const specId = extractSpecialiteId(seance, specialiteOptions);
+      const photoId = extractPhotographeId(seance);
+      const cliId = extractClientId(seance);
+
+      setEditingSeance(seance);
+      setFormError(null);
+      setPhotographeNotice(null);
+      setFormData({
+        date: extractSeanceDate(seance) || toDateInputString(new Date()),
+        heureDebut: extractHeureDebut(seance) || "10:00",
+        dureeMinutes: String(extractDureeMinutes(seance) || 60),
+        lieu: seance.lieu || "",
+        specialiteId: specId !== undefined ? String(specId) : "",
+        photographeId: photoId !== undefined ? String(photoId) : "",
+        clientId: cliId !== undefined ? String(cliId) : "",
+      });
+      setIsFormOpen(true);
+    },
+    [specialiteOptions]
+  );
+
+  const handleCloseForm = useCallback(() => {
+    if (isSubmittingForm) return;
+    setIsFormOpen(false);
+    setEditingSeance(null);
+    setFormError(null);
+    setPhotographeNotice(null);
+  }, [isSubmittingForm]);
+
+  // Changement de spécialité dans le formulaire : filtre les photographes actifs ayant cette spécialité
+  const handleFormSpecialiteChange = (newSpecId: string) => {
+    setPhotographeNotice(null);
+    const specIdNum = Number(newSpecId);
+    const currentPhotoId = Number(formData.photographeId);
+    const eligible = photographesApi.filter((p) => {
+      if (p.actif === false) return false;
+      if (!specIdNum || Number.isNaN(specIdNum)) return true;
+      return p.specialites?.some((sp) => sp.id === specIdNum);
+    });
+
+    const stillEligible = eligible.some((p) => p.id === currentPhotoId);
+    let nextPhotoId = formData.photographeId;
+    if (!stillEligible) {
+      nextPhotoId = eligible.length > 0 ? String(eligible[0].id) : "";
+      if (currentPhotoId) {
+        setPhotographeNotice(
+          "Le photographe précédemment sélectionné ne possède pas cette spécialité (ou est inactif) : la sélection a été mise à jour."
+        );
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      specialiteId: newSpecId,
+      photographeId: nextPhotoId,
+    }));
+  };
+
+  // Soumission du formulaire (POST /seances ou PUT /seances/{id})
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+
+    const duree = Number(formData.dureeMinutes);
+    const specId = Number(formData.specialiteId);
+    const photoId = Number(formData.photographeId);
+    const cliId = Number(formData.clientId);
+
+    if (!formData.date || !formData.heureDebut) {
+      setFormError("Veuillez renseigner la date et l'heure de début de la séance.");
+      return;
+    }
+    if (!duree || Number.isNaN(duree) || duree <= 0) {
+      setFormError("La durée de la séance doit être supérieure à 0 minute.");
+      return;
+    }
+    if (!formData.lieu.trim()) {
+      setFormError("Le lieu de la séance est obligatoire.");
+      return;
+    }
+    if (!specId || Number.isNaN(specId)) {
+      setFormError("Veuillez sélectionner une spécialité (type de séance).");
+      return;
+    }
+    if (!photoId || Number.isNaN(photoId)) {
+      setFormError(
+        "Veuillez sélectionner un photographe actif possédant la spécialité choisie."
+      );
+      return;
+    }
+    if (!cliId || Number.isNaN(cliId)) {
+      setFormError("Veuillez sélectionner un client.");
+      return;
+    }
+
+    const requestPayload: SeanceRequest = {
+      date: formData.date,
+      heureDebut: formData.heureDebut,
+      dureeMinutes: duree,
+      lieu: formData.lieu.trim(),
+      specialiteId: specId,
+      photographeId: photoId,
+      clientId: cliId,
+    };
+
+    setIsSubmittingForm(true);
+    try {
+      if (editingSeance) {
+        const updated = await apiUpdateSeance(editingSeance.id, requestPayload);
+        setSeances((prev) =>
+          prev.map((item) =>
+            item.id === updated.id ? { ...item, ...updated } : item
+          )
+        );
+        if (selectedSeanceId === updated.id) {
+          setSeanceDetail((prev) => (prev ? { ...prev, ...updated } : updated));
+        }
+        success(
+          "Séance modifiée",
+          `La séance #${updated.id} a été mise à jour avec succès.`
+        );
+      } else {
+        const created = await apiCreateSeance(requestPayload);
+        setSeances((prev) => [...prev, created]);
+        success(
+          "Séance créée",
+          `La nouvelle séance #${created.id} a été planifiée le ${formatDateShortFr(
+            extractSeanceDate(created) || formData.date
+          )} à ${extractHeureDebut(created) || formData.heureDebut}.`
+        );
+      }
+      setIsFormOpen(false);
+      setEditingSeance(null);
+      triggerRefresh();
+    } catch (err) {
+      setFormError(err);
+      showApiError(
+        err,
+        editingSeance
+          ? "Impossible de modifier la séance"
+          : "Impossible de créer la séance"
+      );
+    } finally {
+      setIsSubmittingForm(false);
+    }
+  };
 
   // Filtrage et tri côté client en complément du filtrage backend
   const filteredSeances = useMemo(() => {
@@ -853,6 +1204,16 @@ export function SeancesPage() {
               className={`w-3.5 h-3.5 ${loadingSeances ? "animate-spin" : ""}`}
             />
             <span>Actualiser</span>
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => handleOpenCreateForm()}
+            className="cursor-pointer gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nouvelle séance</span>
           </Button>
         </div>
       </div>
@@ -1631,6 +1992,22 @@ export function SeancesPage() {
                                 <span>Détails</span>
                               </Button>
 
+                              {isSeanceModifiable(seance.statut) && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="xs"
+                                  onClick={() => handleOpenEditForm(seance)}
+                                  title="Modifier la séance"
+                                  className="cursor-pointer gap-1"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                  <span className="sr-only sm:not-sr-only">
+                                    Modifier
+                                  </span>
+                                </Button>
+                              )}
+
                               <Button
                                 type="button"
                                 variant="destructive"
@@ -2047,16 +2424,39 @@ export function SeancesPage() {
 
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
                   {seanceDetail ? (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setSeanceToDelete(seanceDetail)}
-                      className="cursor-pointer gap-1.5"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Supprimer la séance</span>
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isSeanceModifiable(seanceDetail.statut) ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenEditForm(seanceDetail)}
+                          className="cursor-pointer gap-1.5"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          <span>Modifier la séance</span>
+                        </Button>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground px-2.5 py-1 rounded-lg bg-muted/60 border border-border"
+                          title="Une séance TERMINEE ou ANNULEE ne peut plus être modifiée"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>Modification verrouillée ({STATUT_STYLES[seanceDetail.statut]?.label})</span>
+                        </span>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setSeanceToDelete(seanceDetail)}
+                        className="cursor-pointer gap-1.5"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Supprimer la séance</span>
+                      </Button>
+                    </div>
                   ) : (
                     <div />
                   )}
@@ -2071,6 +2471,400 @@ export function SeancesPage() {
                   </Button>
                 </div>
               </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== MODALE DE CRÉATION / MODIFICATION D'UNE SÉANCE ==================== */}
+      {isFormOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="seance-form-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto"
+          onClick={handleCloseForm}
+        >
+          <div
+            className="w-full max-w-2xl text-left my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Card className="shadow-2xl border-border">
+              <CardHeader className="border-b border-border pb-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <CardTitle id="seance-form-title" className="text-lg flex items-center gap-2">
+                      {editingSeance ? (
+                        <>
+                          <Pencil className="w-4 h-4 text-primary" />
+                          <span>Modifier la séance #{editingSeance.id}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-5 h-5 text-primary" />
+                          <span>Planifier une nouvelle séance</span>
+                        </>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      {editingSeance
+                        ? "Modifiez les informations de la séance (date, heure, durée, lieu, spécialité, photographe actif qualifié et client)."
+                        : "Renseignez les informations de la prestation. Le statut initial sera « Planifiée » (PLANIFIEE)."}
+                    </CardDescription>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCloseForm}
+                    disabled={isSubmittingForm}
+                    className="cursor-pointer p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+                    aria-label="Fermer le formulaire"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </CardHeader>
+
+              <form onSubmit={handleFormSubmit}>
+                <CardContent className="pt-5 space-y-4">
+                  {/* Erreur renvoyée par le backend (ProblemDetail 400 / 409) ou validation */}
+                  <ErrorAlert
+                    error={formError}
+                    onDismiss={() => setFormError(null)}
+                  />
+
+                  {/* Messages d'erreur / avertissement explicites en temps réel */}
+                  {formValidationWarnings.debutPasse && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-50/80 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200"
+                    >
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold">Créneau dans le passé : </span>
+                        {formValidationWarnings.debutPasse}
+                      </div>
+                    </div>
+                  )}
+
+                  {formValidationWarnings.depasseMinuit && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2.5 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive"
+                    >
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold">Dépassement de minuit : </span>
+                        {formValidationWarnings.depasseMinuit}
+                      </div>
+                    </div>
+                  )}
+
+                  {formValidationWarnings.chevauchement && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2.5 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive"
+                    >
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold">Conflit d'agenda : </span>
+                        {formValidationWarnings.chevauchement}
+                      </div>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const fieldErrors =
+                      formError instanceof ApiError ? formError.fieldErrors : undefined;
+
+                    return (
+                      <>
+                        {/* Ligne 1 : Date, Heure de début, Durée */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="seance-form-date" className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span>Date *</span>
+                            </Label>
+                            <Input
+                              id="seance-form-date"
+                              type="date"
+                              value={formData.date}
+                              onChange={(e) =>
+                                setFormData((prev) => ({ ...prev, date: e.target.value }))
+                              }
+                              required
+                              aria-invalid={
+                                fieldErrors?.date || fieldErrors?.dateSeance ? true : undefined
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="seance-form-heure" className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span>Heure de début *</span>
+                            </Label>
+                            <Input
+                              id="seance-form-heure"
+                              type="time"
+                              value={formData.heureDebut}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  heureDebut: e.target.value,
+                                }))
+                              }
+                              required
+                              aria-invalid={fieldErrors?.heureDebut ? true : undefined}
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor="seance-form-duree" className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span>Durée (minutes) *</span>
+                            </Label>
+                            <Input
+                              id="seance-form-duree"
+                              type="number"
+                              min={15}
+                              max={1440}
+                              step={5}
+                              value={formData.dureeMinutes}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  dureeMinutes: e.target.value,
+                                }))
+                              }
+                              required
+                              aria-invalid={
+                                fieldErrors?.dureeMinutes || fieldErrors?.duree
+                                  ? true
+                                  : undefined
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        {/* Raccourcis de durée + aperçu de l'heure de fin */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/40 px-3 py-2 border border-border">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground mr-1">
+                              Durées rapides :
+                            </span>
+                            {DUREE_PRESETS.map((preset) => {
+                              const isSelected =
+                                Number(formData.dureeMinutes) === preset.value;
+                              return (
+                                <button
+                                  key={preset.value}
+                                  type="button"
+                                  onClick={() =>
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      dureeMinutes: String(preset.value),
+                                    }))
+                                  }
+                                  className={`cursor-pointer px-2 py-0.5 rounded-md text-xs font-medium border transition-colors ${
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-background text-muted-foreground border-border hover:text-foreground"
+                                  }`}
+                                >
+                                  {preset.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {formValidationWarnings.heureFinCalculee && (
+                            <div className="text-xs font-mono text-muted-foreground">
+                              Fin estimée :{" "}
+                              <strong className="text-foreground">
+                                {formValidationWarnings.heureFinCalculee}
+                              </strong>{" "}
+                              ({formatDuration(Number(formData.dureeMinutes))})
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Ligne 2 : Spécialité et Photographe (filtré par spécialité et statut actif) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="seance-form-specialite"
+                              className="flex items-center gap-1.5"
+                            >
+                              <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span>Spécialité (Type de séance) *</span>
+                            </Label>
+                            <select
+                              id="seance-form-specialite"
+                              value={formData.specialiteId}
+                              onChange={(e) => handleFormSpecialiteChange(e.target.value)}
+                              required
+                              aria-invalid={
+                                fieldErrors?.specialiteId || fieldErrors?.idSpecialite
+                                  ? true
+                                  : undefined
+                              }
+                              className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                            >
+                              <option value="">Sélectionner une spécialité...</option>
+                              {specialiteOptions.map((sp) => (
+                                <option key={sp.id} value={String(sp.id)}>
+                                  {sp.libelle}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="seance-form-photographe"
+                              className="flex items-center gap-1.5"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span>Photographe (actif & qualifié) *</span>
+                            </Label>
+                            <select
+                              id="seance-form-photographe"
+                              value={formData.photographeId}
+                              onChange={(e) => {
+                                setPhotographeNotice(null);
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  photographeId: e.target.value,
+                                }));
+                              }}
+                              required
+                              disabled={eligiblePhotographesForForm.length === 0}
+                              aria-invalid={
+                                fieldErrors?.photographeId || fieldErrors?.idPhotographe
+                                  ? true
+                                  : undefined
+                              }
+                              className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 dark:bg-input/30"
+                            >
+                              <option value="">
+                                {eligiblePhotographesForForm.length === 0
+                                  ? "Aucun photographe actif pour cette spécialité"
+                                  : "Sélectionner un photographe..."}
+                              </option>
+                              {eligiblePhotographesForForm.map((p) => (
+                                <option key={p.id} value={String(p.id)}>
+                                  {p.nom}
+                                  {p.email ? ` (${p.email})` : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-[11px] text-muted-foreground">
+                              Seuls les photographes actifs possédant la spécialité choisie
+                              sont proposés ({eligiblePhotographesForForm.length} disponible
+                              {eligiblePhotographesForForm.length > 1 ? "s" : ""}).
+                            </p>
+                            {photographeNotice && (
+                              <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                                {photographeNotice}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Ligne 3 : Client & Lieu */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="seance-form-client"
+                              className="flex items-center gap-1.5"
+                            >
+                              <User className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span>Client *</span>
+                            </Label>
+                            <select
+                              id="seance-form-client"
+                              value={formData.clientId}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  clientId: e.target.value,
+                                }))
+                              }
+                              required
+                              aria-invalid={
+                                fieldErrors?.clientId || fieldErrors?.idClient
+                                  ? true
+                                  : undefined
+                              }
+                              className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                            >
+                              <option value="">Sélectionner un client...</option>
+                              {clientOptions.map((c) => (
+                                <option key={c.id} value={String(c.id)}>
+                                  {c.nom}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label
+                              htmlFor="seance-form-lieu"
+                              className="flex items-center gap-1.5"
+                            >
+                              <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span>Lieu de la prestation *</span>
+                            </Label>
+                            <Input
+                              id="seance-form-lieu"
+                              type="text"
+                              maxLength={255}
+                              placeholder="Ex. Studio Argentic, Lannion ou Château de Rosanbo"
+                              value={formData.lieu}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  lieu: e.target.value,
+                                }))
+                              }
+                              required
+                              aria-invalid={fieldErrors?.lieu ? true : undefined}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCloseForm}
+                      disabled={isSubmittingForm}
+                      className="cursor-pointer"
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSubmittingForm}
+                      className="cursor-pointer gap-1.5"
+                    >
+                      {isSubmittingForm && (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      )}
+                      <span>
+                        {editingSeance
+                          ? "Enregistrer les modifications"
+                          : "Créer la séance"}
+                      </span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </form>
             </Card>
           </div>
         </div>
