@@ -37,4 +37,6 @@ public interface FactureRepository extends JpaRepository<Facture, Long> {
     );
 
     Optional<Facture> findBySeanceId(Long seanceId);
+
+    boolean existsBySeanceId(Long seanceId);
 }
