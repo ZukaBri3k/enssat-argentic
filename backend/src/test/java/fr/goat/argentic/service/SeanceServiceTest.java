@@ -1,6 +1,7 @@
 package fr.goat.argentic.service;
 
 import fr.goat.argentic.dto.SeanceResponse;
+import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
 import fr.goat.argentic.model.ClientParticulier;
@@ -17,6 +18,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,6 +34,8 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -176,5 +181,208 @@ class SeanceServiceTest {
                 .hasMessageContaining("999");
 
         verifyNoInteractions(factureRepository);
+    }
+
+    // ==================== Tests changerStatut ====================
+
+    @Test
+    @DisplayName("changerStatut autorise la transition PLANIFIEE -> CONFIRMEE")
+    void changerStatut_planifieeVersConfirmee_doitMettreAJourLeStatut() {
+        seance.setStatut(StatutSeance.PLANIFIEE);
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+        when(factureRepository.findBySeanceId(1L)).thenReturn(Optional.empty());
+
+        SeanceResponse result = seanceService.changerStatut(1L, StatutSeance.CONFIRMEE);
+
+        assertThat(result.statut()).isEqualTo(StatutSeance.CONFIRMEE);
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.CONFIRMEE);
+        verify(seanceRepository).save(seance);
+    }
+
+    @Test
+    @DisplayName("changerStatut autorise la transition PLANIFIEE -> ANNULEE")
+    void changerStatut_planifieeVersAnnulee_doitMettreAJourLeStatut() {
+        seance.setStatut(StatutSeance.PLANIFIEE);
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+        when(factureRepository.findBySeanceId(1L)).thenReturn(Optional.empty());
+
+        SeanceResponse result = seanceService.changerStatut(1L, StatutSeance.ANNULEE);
+
+        assertThat(result.statut()).isEqualTo(StatutSeance.ANNULEE);
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.ANNULEE);
+        verify(seanceRepository).save(seance);
+    }
+
+    @Test
+    @DisplayName("changerStatut refuse la transition directe PLANIFIEE -> TERMINEE (409)")
+    void changerStatut_planifieeVersTerminee_doitLeverRegleMetierException() {
+        seance.setStatut(StatutSeance.PLANIFIEE);
+        seance.setDate(LocalDate.now().minusDays(2));
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+
+        assertThatThrownBy(() -> seanceService.changerStatut(1L, StatutSeance.TERMINEE))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("PLANIFIEE")
+                .hasMessageContaining("TERMINEE");
+
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.PLANIFIEE);
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("changerStatut autorise la transition CONFIRMEE -> ANNULEE")
+    void changerStatut_confirmeeVersAnnulee_doitMettreAJourLeStatut() {
+        seance.setStatut(StatutSeance.CONFIRMEE);
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+        when(factureRepository.findBySeanceId(1L)).thenReturn(Optional.empty());
+
+        SeanceResponse result = seanceService.changerStatut(1L, StatutSeance.ANNULEE);
+
+        assertThat(result.statut()).isEqualTo(StatutSeance.ANNULEE);
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.ANNULEE);
+        verify(seanceRepository).save(seance);
+    }
+
+    @Test
+    @DisplayName("changerStatut autorise la transition CONFIRMEE -> TERMINEE si la fin de la séance est passée")
+    void changerStatut_confirmeeVersTerminee_finPassee_doitMettreAJourLeStatut() {
+        seance.setStatut(StatutSeance.CONFIRMEE);
+        seance.setDate(LocalDate.now().minusDays(1));
+        seance.setHeureDebut(LocalTime.of(10, 0));
+        seance.setDureeMinutes(60);
+
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+        when(factureRepository.findBySeanceId(1L)).thenReturn(Optional.empty());
+
+        SeanceResponse result = seanceService.changerStatut(1L, StatutSeance.TERMINEE);
+
+        assertThat(result.statut()).isEqualTo(StatutSeance.TERMINEE);
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.TERMINEE);
+        verify(seanceRepository).save(seance);
+    }
+
+    @Test
+    @DisplayName("changerStatut refuse la transition CONFIRMEE -> TERMINEE si la fin de la séance n'est pas encore passée (409)")
+    void changerStatut_confirmeeVersTerminee_finDansLeFutur_doitLeverRegleMetierException() {
+        seance.setStatut(StatutSeance.CONFIRMEE);
+        seance.setDate(LocalDate.now().plusDays(1));
+        seance.setHeureDebut(LocalTime.of(14, 0));
+        seance.setDureeMinutes(120);
+
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+
+        assertThatThrownBy(() -> seanceService.changerStatut(1L, StatutSeance.TERMINEE))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("TERMINEE")
+                .hasMessageContaining("fin");
+
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.CONFIRMEE);
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("changerStatut refuse la transition CONFIRMEE -> PLANIFIEE (409)")
+    void changerStatut_confirmeeVersPlanifiee_doitLeverRegleMetierException() {
+        seance.setStatut(StatutSeance.CONFIRMEE);
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+
+        assertThatThrownBy(() -> seanceService.changerStatut(1L, StatutSeance.PLANIFIEE))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("CONFIRMEE")
+                .hasMessageContaining("PLANIFIEE");
+
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.CONFIRMEE);
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(StatutSeance.class)
+    @DisplayName("changerStatut refuse toute transition depuis TERMINEE (statut final -> 409)")
+    void changerStatut_depuisTerminee_doitLeverRegleMetierException(StatutSeance cible) {
+        seance.setStatut(StatutSeance.TERMINEE);
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+
+        assertThatThrownBy(() -> seanceService.changerStatut(1L, cible))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("final");
+
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.TERMINEE);
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(StatutSeance.class)
+    @DisplayName("changerStatut refuse toute transition depuis ANNULEE (statut final -> 409)")
+    void changerStatut_depuisAnnulee_doitLeverRegleMetierException(StatutSeance cible) {
+        seance.setStatut(StatutSeance.ANNULEE);
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+
+        assertThatThrownBy(() -> seanceService.changerStatut(1L, cible))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("final");
+
+        assertThat(seance.getStatut()).isEqualTo(StatutSeance.ANNULEE);
+        verify(seanceRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("changerStatut lève DonneeInvalideException si le nouveau statut est null")
+    void changerStatut_statutNull_doitLeverDonneeInvalideException() {
+        assertThatThrownBy(() -> seanceService.changerStatut(1L, null))
+                .isInstanceOf(DonneeInvalideException.class)
+                .hasMessageContaining("statut");
+
+        verifyNoInteractions(seanceRepository);
+    }
+
+    @Test
+    @DisplayName("changerStatut lève ResourceNotFoundException si la séance n'existe pas")
+    void changerStatut_seanceInexistante_doitLeverResourceNotFoundException() {
+        when(seanceRepository.getSeanceById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> seanceService.changerStatut(999L, StatutSeance.CONFIRMEE))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("999");
+
+        verify(seanceRepository, never()).save(any());
+    }
+
+    // ==================== Tests deleteSeance ====================
+
+    @Test
+    @DisplayName("deleteSeance supprime la séance si elle n'a pas de facture")
+    void deleteSeance_sansFacture_doitSupprimerLaSeance() {
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+        when(factureRepository.existsBySeanceId(1L)).thenReturn(false);
+
+        seanceService.deleteSeance(1L);
+
+        verify(seanceRepository).delete(seance);
+    }
+
+    @Test
+    @DisplayName("deleteSeance lève RegleMetierException (409) si la séance a une facture")
+    void deleteSeance_avecFacture_doitLeverRegleMetierException() {
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seance));
+        when(factureRepository.existsBySeanceId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> seanceService.deleteSeance(1L))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("facture");
+
+        verify(seanceRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("deleteSeance lève ResourceNotFoundException (404) si la séance n'existe pas")
+    void deleteSeance_seanceInexistante_doitLeverResourceNotFoundException() {
+        when(seanceRepository.getSeanceById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> seanceService.deleteSeance(999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("999");
+
+        verifyNoInteractions(factureRepository);
+        verify(seanceRepository, never()).delete(any());
     }
 }
