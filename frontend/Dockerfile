@@ -8,8 +8,8 @@ COPY package.json pnpm-lock.yaml* package-lock.json* ./
 # Installer les dépendances avec npm
 RUN npm install
 
-# Argument pour passer l'URL du backend au build Vite
-ARG VITE_API_URL
+# Argument pour passer l'URL du backend au build Vite (défaut sur production Dokploy)
+ARG VITE_API_URL=https://argentic-api.evan-saleck.com
 ENV VITE_API_URL=$VITE_API_URL
 
 # Copier le reste du code source et compiler
