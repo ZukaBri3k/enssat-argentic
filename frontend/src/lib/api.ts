@@ -129,7 +129,17 @@ export interface SeanceFilters {
   photographeId?: number | string;
   clientId?: number | string;
   statut?: StatutSeance | "";
-export type TypeClient = "PARTICULIER" | "ENTREPRISE";
+}
+
+export interface SeanceRequest {
+  date: string;
+  heureDebut: string;
+  dureeMinutes: number;
+  lieu: string;
+  specialiteId: number;
+  photographeId: number;
+  clientId: number;
+}
 
 export interface Client {
   id: number;
@@ -442,7 +452,40 @@ export async function apiGetSeanceById(id: number): Promise<SeanceResponse> {
   return api.get<SeanceResponse>(`/seances/${id}`);
 }
 
-// Endpoints Clients (pour les listes déroulantes de filtre)
-export async function apiGetClients(): Promise<ClientSummary[]> {
-  return api.get<ClientSummary[]>("/clients");
+export async function apiCreateSeance(request: SeanceRequest): Promise<SeanceResponse> {
+  const payload = {
+    ...request,
+    dateSeance: request.date,
+    duree: request.dureeMinutes,
+    idSpecialite: request.specialiteId,
+    idPhotographe: request.photographeId,
+    idClient: request.clientId,
+  };
+  return api.post<SeanceResponse>("/seances", payload);
+}
+
+export async function apiUpdateSeance(
+  id: number,
+  request: SeanceRequest
+): Promise<SeanceResponse> {
+  const payload = {
+    ...request,
+    dateSeance: request.date,
+    duree: request.dureeMinutes,
+    idSpecialite: request.specialiteId,
+    idPhotographe: request.photographeId,
+    idClient: request.clientId,
+  };
+  return api.put<SeanceResponse>(`/seances/${id}`, payload);
+}
+
+export async function apiChangerStatutSeance(
+  id: number,
+  statut: StatutSeance
+): Promise<SeanceResponse> {
+  return api.patch<SeanceResponse>(`/seances/${id}/statut`, { statut });
+}
+
+export async function apiDeleteSeance(id: number): Promise<void> {
+  return api.delete<void>(`/seances/${id}`);
 }
