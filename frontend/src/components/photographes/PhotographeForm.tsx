@@ -65,7 +65,7 @@ export function PhotographeForm({ photographe, onSaved, onCancel }: PhotographeF
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (specialiteIds.length === 0) {
-      setError("Au moins une spécialité est requise.");
+      setError("Veuillez sélectionner au moins une spécialité.");
       return;
     }
     setSubmitting(true);
@@ -127,12 +127,12 @@ export function PhotographeForm({ photographe, onSaved, onCancel }: PhotographeF
                 Chargement des spécialités...
               </div>
             ) : (
-              <div className="space-y-1.5">
+              <div className="space-y-0.5 sm:space-y-1">
                 {specialites.map((spec) => (
-                  <label key={spec.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label key={spec.id} className="flex min-h-9 items-center gap-2 text-sm cursor-pointer sm:min-h-7">
                     <input
                       type="checkbox"
-                      className="size-4 accent-primary cursor-pointer"
+                      className="size-4 shrink-0 accent-primary cursor-pointer"
                       checked={specialiteIds.includes(spec.id)}
                       onChange={() => toggleSpecialite(spec.id)}
                     />
@@ -143,11 +143,11 @@ export function PhotographeForm({ photographe, onSaved, onCancel }: PhotographeF
             )}
           </fieldset>
         </CardContent>
-        <CardFooter className="flex items-center justify-end gap-2">
+        <CardFooter className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
           <Button
             type="button"
             variant="outline"
-            className="cursor-pointer"
+            className="cursor-pointer w-full h-9 sm:w-auto sm:h-8"
             onClick={onCancel}
             disabled={submitting}
           >
@@ -155,7 +155,7 @@ export function PhotographeForm({ photographe, onSaved, onCancel }: PhotographeF
           </Button>
           <Button
             type="submit"
-            className="cursor-pointer flex items-center gap-1.5"
+            className="cursor-pointer flex items-center gap-1.5 w-full h-9 sm:w-auto sm:h-8"
             disabled={submitting || loadingSpecs}
           >
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />}

@@ -7,6 +7,16 @@ export const TOKEN_KEY = "argentic_token";
 
 export type Role = "SECRETAIRE" | "GESTIONNAIRE";
 
+export const ROLE_LABELS: Record<Role, string> = {
+  SECRETAIRE: "Secrétaire",
+  GESTIONNAIRE: "Gestionnaire",
+};
+
+export const TYPE_CLIENT_LABELS: Record<TypeClient, string> = {
+  PARTICULIER: "Particulier",
+  ENTREPRISE: "Entreprise",
+};
+
 export interface ProblemDetail {
   type?: string;
   title?: string;
@@ -200,15 +210,28 @@ export interface ChiffreAffairesResponse {
   nombreFactures?: number;
 }
 
+// Titre affiché à l'utilisateur selon le statut HTTP (status 0 = service injoignable)
+function titreErreur(status: number): string {
+  if (status === 0) return "Connexion impossible";
+  if (status === 400) return "Données invalides";
+  if (status === 401) return "Connexion refusée";
+  if (status === 403) return "Accès refusé";
+  if (status === 404) return "Élément introuvable";
+  if (status === 409) return "Action impossible";
+  return "Une erreur est survenue";
+}
+
 export class ApiError extends Error {
   status: number;
+  title: string;
   problem?: ProblemDetail;
   fieldErrors?: Record<string, string>;
 
-  constructor(status: number, message: string, problem?: ProblemDetail) {
+  constructor(status: number, message: string, problem?: ProblemDetail, title = titreErreur(status)) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.title = title;
     this.problem = problem;
     this.fieldErrors = problem?.errors;
   }
@@ -265,16 +288,25 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
 
   const url = path.startsWith("http") ? path : `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
-  const response = await fetch(url, {
-    ...restOptions,
-    headers,
-    body:
-      body === undefined
-        ? undefined
-        : body instanceof FormData
-          ? body
-          : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...restOptions,
+      headers,
+      body:
+        body === undefined
+          ? undefined
+          : body instanceof FormData
+            ? body
+            : JSON.stringify(body),
+    });
+  } catch {
+    // Erreur réseau : le message natif (« Failed to fetch »…) n'est pas destiné à l'utilisateur
+    throw new ApiError(
+      0,
+      "Le service est momentanément indisponible. Vérifiez votre connexion puis réessayez."
+    );
+  }
 
   if (!response.ok) {
     let problem: ProblemDetail | undefined;
@@ -285,26 +317,32 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
     }
 
     // Déconnexion automatique sur 401 (sauf lors de la tentative de login elle-même)
-    if (response.status === 401 && !path.includes("/auth/login")) {
+    const sessionExpiree = response.status === 401 && !path.includes("/auth/login");
+    if (sessionExpiree) {
       clearStoredToken();
       if (unauthorizedListener) {
         unauthorizedListener();
       }
     }
 
-    const fieldErrorsMsg = problem?.errors
-      ? Object.entries(problem.errors)
-          .map(([field, msg]) => `${field}: ${msg}`)
-          .join(", ")
-      : null;
+    // Le détail d'une 401 de session, d'une 404 (contient l'identifiant technique) ou d'une 5xx
+    // n'est pas destiné à l'utilisateur : message générique à la place.
+    // Les erreurs par champ sont listées à part par ErrorAlert / les toasts.
+    let message = problem?.detail || "Une erreur inattendue est survenue. Veuillez réessayer.";
+    if (sessionExpiree) {
+      message = "Votre session a expiré. Veuillez vous reconnecter.";
+    } else if (response.status === 404) {
+      message = "L'élément demandé n'existe pas ou a été supprimé.";
+    } else if (response.status >= 500) {
+      message = "Une erreur inattendue est survenue. Veuillez réessayer.";
+    }
 
-    const message =
-      problem?.detail ||
-      fieldErrorsMsg ||
-      problem?.title ||
-      `Erreur HTTP ${response.status}`;
-
-    throw new ApiError(response.status, message, problem);
+    throw new ApiError(
+      response.status,
+      message,
+      problem,
+      sessionExpiree ? "Session expirée" : undefined
+    );
   }
 
   // Gestion des réponses 204 No Content ou corps vide

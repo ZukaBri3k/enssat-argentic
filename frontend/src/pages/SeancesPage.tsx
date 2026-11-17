@@ -11,6 +11,7 @@ import {
   apiGetSeances,
   apiGetSpecialites,
   apiUpdateSeance,
+  TYPE_CLIENT_LABELS,
   type ClientSummary,
   type FactureResponse,
   type FactureSummary,
@@ -20,6 +21,7 @@ import {
   type Specialite,
   type StatutPaiement,
   type StatutSeance,
+  type TypeClient,
 } from "@/lib/api";
 import { useNavigate } from "@/lib/router";
 import { GenererFactureModal } from "@/components/factures/GenererFactureModal";
@@ -116,7 +118,7 @@ const STATUT_STYLES: Record<StatutSeance, StatutStyle> = {
   },
   ANNULEE: {
     label: "Annulée",
-    description: "Séance annulée (statut final, ignorée dans les chevauchements)",
+    description: "Séance annulée (statut final, le créneau est libéré)",
     badgeClass:
       "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800",
     cardClass:
@@ -308,7 +310,7 @@ function getClientDisplayName(c?: ClientSummary): string {
   if (c.identite) return c.identite;
   if (c.raisonSociale) return c.raisonSociale;
   const fullName = [c.nom, c.prenom].filter(Boolean).join(" ").trim();
-  return fullName || c.email || `Client #${c.id}`;
+  return fullName || c.email || "Client sans nom";
 }
 
 function extractClientId(s: SeanceResponse): number | undefined {
@@ -368,7 +370,7 @@ function extractFacture(s: SeanceResponse): FactureSummary | null {
   if (s.factureId || s.factureNumero) {
     return {
       id: s.factureId ?? 0,
-      numero: s.factureNumero ?? `Facture #${s.factureId}`,
+      numero: s.factureNumero ?? "Facture émise",
       statutPaiement: s.factureStatut ?? undefined,
     };
   }
@@ -404,7 +406,7 @@ function resolveFactureForSeance(
       numero:
         matchingApiFacture.numero ||
         baseFacture?.numero ||
-        `Facture #${matchingApiFacture.id}`,
+        "Facture émise",
       dateEmission: matchingApiFacture.dateEmission ?? baseFacture?.dateEmission,
       montantHt: matchingApiFacture.montantHt ?? baseFacture?.montantHt,
       tauxTva: matchingApiFacture.tauxTva ?? baseFacture?.tauxTva,
@@ -758,7 +760,7 @@ export function SeancesPage() {
 
       if (isDebutSeancePasse(formData.date, formData.heureDebut)) {
         messages.debutPasse =
-          "La date et l'heure de début doivent être dans le futur (début ≥ maintenant).";
+          "La date et l'heure de début doivent être dans le futur.";
       }
 
       // Contrôle préventif de chevauchement avec les séances connues non ANNULEE du même photographe
@@ -775,7 +777,7 @@ export function SeancesPage() {
         });
 
         if (conflit) {
-          messages.chevauchement = `Chevauchement détecté : ce photographe a déjà la séance #${conflit.id} (${extractHeureDebut(
+          messages.chevauchement = `Chevauchement détecté : ce photographe a déjà une séance (${extractHeureDebut(
             conflit
           )} – ${extractHeureFin(conflit)}, ${extractClientNom(conflit)}, ${
             conflit.lieu
@@ -949,14 +951,16 @@ export function SeancesPage() {
         }
         success(
           "Séance modifiée",
-          `La séance #${updated.id} a été mise à jour avec succès.`
+          `La séance du ${formatDateShortFr(
+            extractSeanceDate(updated) || formData.date
+          )} à ${extractHeureDebut(updated) || formData.heureDebut} a été mise à jour.`
         );
       } else {
         const created = await apiCreateSeance(requestPayload);
         setSeances((prev) => [...prev, created]);
         success(
           "Séance créée",
-          `La nouvelle séance #${created.id} a été planifiée le ${formatDateShortFr(
+          `La nouvelle séance a été planifiée le ${formatDateShortFr(
             extractSeanceDate(created) || formData.date
           )} à ${extractHeureDebut(created) || formData.heureDebut}.`
         );
@@ -1047,7 +1051,7 @@ export function SeancesPage() {
         setSeanceDetail(fullDetail);
       } catch (err) {
         setDetailError(err);
-        showApiError(err, `Impossible de charger la séance #${seancePreview.id}`);
+        showApiError(err, "Impossible de charger le détail de la séance");
       } finally {
         setLoadingDetail(false);
       }
@@ -1083,7 +1087,7 @@ export function SeancesPage() {
         }
         success(
           "Statut mis à jour",
-          `La séance #${seance.id} est passée au statut « ${STATUT_STYLES[nouveauStatut].label} ».`
+          `La séance du ${formatDateShortFr(extractSeanceDate(seance))} (${extractClientNom(seance)}) est passée au statut « ${STATUT_STYLES[nouveauStatut].label} ».`
         );
       } catch (err) {
         if (selectedSeanceId === seance.id) {
@@ -1119,7 +1123,7 @@ export function SeancesPage() {
       setSeanceToDelete(null);
       success(
         "Séance supprimée",
-        `La séance #${target.id} (${extractSpecialiteLibelle(target)} – ${extractClientNom(target)}) a été supprimée.`
+        `La séance du ${formatDateShortFr(extractSeanceDate(target))} (${extractSpecialiteLibelle(target)} – ${extractClientNom(target)}) a été supprimée.`
       );
     } catch (err) {
       setSeanceToDelete(null);
@@ -1255,10 +1259,10 @@ export function SeancesPage() {
   return (
     <div className="space-y-6">
       {/* En-tête de la page */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Calendar className="w-6 h-6 text-primary" />
+            <Calendar className="w-6 h-6 text-primary shrink-0" />
             <span>Planning & Séances photo</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -1268,18 +1272,18 @@ export function SeancesPage() {
         </div>
 
         {/* Sélecteur de vue (Semaine / Jour / Liste) + bouton Actualiser */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <div
             role="tablist"
             aria-label="Mode d'affichage du planning"
-            className="inline-flex items-center rounded-xl bg-muted p-1 border border-border"
+            className="flex w-full sm:inline-flex sm:w-auto items-center rounded-xl bg-muted p-1 border border-border"
           >
             <button
               type="button"
               role="tab"
               aria-selected={viewMode === "semaine"}
               onClick={() => setViewMode("semaine")}
-              className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`cursor-pointer flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-all ${
                 viewMode === "semaine"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -1293,7 +1297,7 @@ export function SeancesPage() {
               role="tab"
               aria-selected={viewMode === "jour"}
               onClick={() => setViewMode("jour")}
-              className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`cursor-pointer flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-all ${
                 viewMode === "jour"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -1307,7 +1311,7 @@ export function SeancesPage() {
               role="tab"
               aria-selected={viewMode === "liste"}
               onClick={() => setViewMode("liste")}
-              className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`cursor-pointer flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-all ${
                 viewMode === "liste"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -1318,29 +1322,31 @@ export function SeancesPage() {
             </button>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={triggerRefresh}
-            disabled={loadingSeances}
-            className="cursor-pointer gap-1.5"
-          >
-            <RefreshCw
-              className={`w-3.5 h-3.5 ${loadingSeances ? "animate-spin" : ""}`}
-            />
-            <span>Actualiser</span>
-          </Button>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={triggerRefresh}
+              disabled={loadingSeances}
+              className="cursor-pointer gap-1.5 h-9 sm:h-7"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${loadingSeances ? "animate-spin" : ""}`}
+              />
+              <span>Actualiser</span>
+            </Button>
 
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => handleOpenCreateForm()}
-            className="cursor-pointer gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nouvelle séance</span>
-          </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => handleOpenCreateForm()}
+              className="cursor-pointer gap-1.5 h-9 sm:h-7"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nouvelle séance</span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1361,7 +1367,7 @@ export function SeancesPage() {
                 id="filter-photographe"
                 value={selectedPhotographeId}
                 onChange={(e) => setSelectedPhotographeId(e.target.value)}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                className="h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
               >
                 <option value="">Tous les photographes</option>
                 {photographeOptions.map((p) => (
@@ -1388,12 +1394,12 @@ export function SeancesPage() {
                 onChange={(e) =>
                   setSelectedStatut(e.target.value as StatutSeance | "")
                 }
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                className="h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
               >
                 <option value="">Tous les statuts</option>
                 {ALL_STATUTS.map((st) => (
                   <option key={st} value={st}>
-                    {STATUT_STYLES[st].label} ({st})
+                    {STATUT_STYLES[st].label}
                   </option>
                 ))}
               </select>
@@ -1412,7 +1418,7 @@ export function SeancesPage() {
                 id="filter-client"
                 value={selectedClientId}
                 onChange={(e) => setSelectedClientId(e.target.value)}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                className="h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
               >
                 <option value="">Tous les clients</option>
                 {clientOptions.map((c) => (
@@ -1445,14 +1451,14 @@ export function SeancesPage() {
                 />
               </div>
             ) : (
-              <div className="flex items-center justify-end h-8">
+              <div className="flex items-center justify-end sm:h-9">
                 {hasActiveFilters && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={resetFilters}
-                    className="cursor-pointer w-full gap-1.5"
+                    className="cursor-pointer w-full gap-1.5 h-9 sm:h-7"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Réinitialiser les filtres</span>
@@ -1465,7 +1471,7 @@ export function SeancesPage() {
           {/* Filtres de période spécifiques au mode Liste */}
           {viewMode === "liste" && (
             <div className="pt-2 border-t border-border flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 max-w-md">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 w-full md:max-w-md">
                 <div className="space-y-1">
                   <Label htmlFor="list-du" className="text-xs">
                     Période du
@@ -1498,7 +1504,7 @@ export function SeancesPage() {
                   type="button"
                   variant="outline"
                   size="xs"
-                  className="cursor-pointer"
+                  className="cursor-pointer h-8 sm:h-6"
                   onClick={() => applyListPreset("all")}
                 >
                   Toutes les dates
@@ -1507,7 +1513,7 @@ export function SeancesPage() {
                   type="button"
                   variant="outline"
                   size="xs"
-                  className="cursor-pointer"
+                  className="cursor-pointer h-8 sm:h-6"
                   onClick={() => applyListPreset("week")}
                 >
                   Cette semaine
@@ -1516,7 +1522,7 @@ export function SeancesPage() {
                   type="button"
                   variant="outline"
                   size="xs"
-                  className="cursor-pointer"
+                  className="cursor-pointer h-8 sm:h-6"
                   onClick={() => applyListPreset("month")}
                 >
                   Ce mois-ci
@@ -1525,7 +1531,7 @@ export function SeancesPage() {
                   type="button"
                   variant="outline"
                   size="xs"
-                  className="cursor-pointer"
+                  className="cursor-pointer h-8 sm:h-6"
                   onClick={() => applyListPreset("upcoming")}
                 >
                   À venir
@@ -1534,7 +1540,7 @@ export function SeancesPage() {
                   type="button"
                   variant="outline"
                   size="xs"
-                  className="cursor-pointer"
+                  className="cursor-pointer h-8 sm:h-6"
                   onClick={() => applyListPreset("past")}
                 >
                   Passées
@@ -1553,14 +1559,14 @@ export function SeancesPage() {
               <button
                 type="button"
                 onClick={() => setSelectedStatut("")}
-                className={`cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                className={`cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 rounded-full text-xs font-medium border transition-all ${
                   selectedStatut === ""
                     ? "bg-foreground text-background border-foreground shadow-xs"
                     : "bg-muted/60 text-muted-foreground border-border hover:text-foreground"
                 }`}
               >
                 <span>Tous</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-background/20">
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-background/20">
                   {filteredSeances.length}
                 </span>
               </button>
@@ -1576,7 +1582,7 @@ export function SeancesPage() {
                       setSelectedStatut((prev) => (prev === st ? "" : st))
                     }
                     title={style.description}
-                    className={`cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                    className={`cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:py-1 rounded-full text-xs font-medium border transition-all ${
                       isSelected ? style.pillActiveClass : style.badgeClass
                     }`}
                   >
@@ -1600,7 +1606,7 @@ export function SeancesPage() {
                 variant="ghost"
                 size="xs"
                 onClick={resetFilters}
-                className="cursor-pointer gap-1 text-muted-foreground hover:text-foreground"
+                className="cursor-pointer gap-1 h-8 sm:h-6 text-muted-foreground hover:text-foreground"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Réinitialiser les filtres</span>
@@ -1628,7 +1634,7 @@ export function SeancesPage() {
               aria-label={
                 viewMode === "semaine" ? "Semaine précédente" : "Jour précédent"
               }
-              className="cursor-pointer"
+              className="cursor-pointer size-9 sm:size-7"
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -1637,7 +1643,7 @@ export function SeancesPage() {
               variant="outline"
               size="sm"
               onClick={goToToday}
-              className="cursor-pointer text-xs font-medium"
+              className="cursor-pointer text-xs font-medium h-9 sm:h-7"
             >
               Aujourd'hui
             </Button>
@@ -1649,13 +1655,13 @@ export function SeancesPage() {
               aria-label={
                 viewMode === "semaine" ? "Semaine suivante" : "Jour suivant"
               }
-              className="cursor-pointer"
+              className="cursor-pointer size-9 sm:size-7"
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 
-          <div className="text-base sm:text-lg font-bold text-foreground capitalize">
+          <div className="text-base sm:text-lg font-bold text-foreground capitalize break-words">
             {viewMode === "semaine"
               ? `Semaine du ${formatWeekRangeFr(mondayOfWeek)}`
               : formatDateLongFr(referenceDateStr)}
@@ -1680,7 +1686,7 @@ export function SeancesPage() {
         </Card>
       ) : viewMode === "semaine" ? (
         /* ==================== VUE PLANNING PAR SEMAINE ==================== */
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
           {weekDays.map((dayDate) => {
             const dayStr = toDateInputString(dayDate);
             const isToday = dayStr === todayStr;
@@ -1698,7 +1704,7 @@ export function SeancesPage() {
             return (
               <div
                 key={dayStr}
-                className={`flex flex-col rounded-xl border bg-card overflow-hidden transition-colors min-h-[260px] ${
+                className={`flex flex-col min-w-0 rounded-xl border bg-card overflow-hidden transition-colors lg:min-h-[260px] ${
                   isToday
                     ? "border-primary ring-2 ring-primary/20"
                     : "border-border"
@@ -1712,7 +1718,7 @@ export function SeancesPage() {
                     setViewMode("jour");
                   }}
                   title="Voir le planning détaillé de cette journée"
-                  className={`cursor-pointer w-full px-3 py-2.5 border-b text-left flex items-center justify-between transition-colors ${
+                  className={`cursor-pointer w-full px-3 py-2.5 border-b text-left flex items-center justify-between gap-2 transition-colors ${
                     isToday
                       ? "bg-primary/10 border-primary/20"
                       : "bg-muted/40 border-border hover:bg-muted/70"
@@ -1725,7 +1731,7 @@ export function SeancesPage() {
                     <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                       <span>{dayNum}</span>
                       {isToday && (
-                        <span className="px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-primary text-primary-foreground">
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-primary text-primary-foreground">
                           Auj.
                         </span>
                       )}
@@ -1739,7 +1745,7 @@ export function SeancesPage() {
                 {/* Liste des séances du jour */}
                 <div className="p-2 flex-1 space-y-2">
                   {daySeances.length === 0 ? (
-                    <div className="h-full min-h-[160px] flex items-center justify-center text-center p-2">
+                    <div className="h-full lg:min-h-[160px] flex items-center justify-center text-center p-2">
                       <span className="text-xs text-muted-foreground/60">
                         Aucune séance
                       </span>
@@ -1762,7 +1768,7 @@ export function SeancesPage() {
                           onClick={() => void handleOpenDetail(seance)}
                           className={`cursor-pointer w-full text-left rounded-lg border p-2.5 transition-all shadow-2xs space-y-1.5 ${stStyle.cardClass}`}
                         >
-                          <div className="flex items-center justify-between gap-1">
+                          <div className="flex flex-wrap items-center justify-between gap-1">
                             <span className="text-xs font-bold font-mono text-foreground">
                               {heureDebut} – {heureFin}
                             </span>
@@ -1778,15 +1784,15 @@ export function SeancesPage() {
                           </div>
 
                           <div className="space-y-0.5 text-[11px] text-muted-foreground">
-                            <div className="flex items-center gap-1 truncate">
+                            <div className="flex items-center gap-1 min-w-0">
                               <Camera className="w-3 h-3 shrink-0" />
                               <span className="truncate">{photographeNom}</span>
                             </div>
-                            <div className="flex items-center gap-1 truncate">
+                            <div className="flex items-center gap-1 min-w-0">
                               <User className="w-3 h-3 shrink-0" />
                               <span className="truncate">{clientNom}</span>
                             </div>
-                            <div className="flex items-center gap-1 truncate">
+                            <div className="flex items-center gap-1 min-w-0">
                               <MapPin className="w-3 h-3 shrink-0" />
                               <span className="truncate">{seance.lieu}</span>
                             </div>
@@ -1820,7 +1826,7 @@ export function SeancesPage() {
         /* ==================== VUE PLANNING PAR JOUR ==================== */
         <div className="space-y-4">
           {/* Barre d'accès rapide aux 7 jours de la semaine courante */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {weekDays.map((d) => {
               const dStr = toDateInputString(d);
               const isSelected = dStr === referenceDateStr;
@@ -1830,7 +1836,7 @@ export function SeancesPage() {
                   key={dStr}
                   type="button"
                   onClick={() => setReferenceDate(d)}
-                  className={`cursor-pointer p-2 rounded-xl border text-center transition-all ${
+                  className={`cursor-pointer min-w-0 px-1 py-2 sm:p-2 rounded-xl border text-center transition-all ${
                     isSelected
                       ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
                       : isToday
@@ -1838,7 +1844,7 @@ export function SeancesPage() {
                         : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/50"
                   }`}
                 >
-                  <div className="text-[11px] uppercase">
+                  <div className="text-[11px] uppercase truncate">
                     {new Intl.DateTimeFormat("fr-FR", {
                       weekday: "short",
                     }).format(d)}
@@ -1851,8 +1857,8 @@ export function SeancesPage() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span>Créneaux horaires du {formatDateLongFr(referenceDateStr)}</span>
+              <CardTitle className="text-base flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <span className="break-words">Créneaux horaires du {formatDateLongFr(referenceDateStr)}</span>
                 <span className="text-xs font-normal text-muted-foreground">
                   Cliquez sur une séance pour consulter sa fiche complète
                 </span>
@@ -1892,7 +1898,7 @@ export function SeancesPage() {
                         <div className="w-20 shrink-0 font-mono text-xs font-semibold pt-1">
                           {hourLabel}
                         </div>
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                        <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-2 gap-2.5">
                           {slotSeances.length === 0 ? (
                             <span className="text-xs italic">Disponible</span>
                           ) : (
@@ -1913,9 +1919,9 @@ export function SeancesPage() {
                                   key={seance.id}
                                   type="button"
                                   onClick={() => void handleOpenDetail(seance)}
-                                  className={`cursor-pointer text-left rounded-xl border p-3.5 transition-all shadow-xs space-y-2 ${stStyle.cardClass}`}
+                                  className={`cursor-pointer w-full min-w-0 text-left rounded-xl border p-3.5 transition-all shadow-xs space-y-2 ${stStyle.cardClass}`}
                                 >
-                                  <div className="flex items-center justify-between gap-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div className="flex items-center gap-2">
                                       <span className="font-mono text-sm font-bold text-foreground">
                                         {heureDebut} → {heureFin}
@@ -1945,25 +1951,25 @@ export function SeancesPage() {
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                  <div className="flex items-center gap-2 min-w-0 text-sm font-semibold text-foreground">
                                     <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
-                                    <span>{extractSpecialiteLibelle(seance)}</span>
+                                    <span className="break-words min-w-0">{extractSpecialiteLibelle(seance)}</span>
                                   </div>
 
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-muted-foreground pt-1">
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
                                       <Camera className="w-3.5 h-3.5 shrink-0" />
                                       <span className="font-medium text-foreground truncate">
                                         {extractPhotographeNom(seance)}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
                                       <User className="w-3.5 h-3.5 shrink-0" />
                                       <span className="font-medium text-foreground truncate">
                                         {extractClientNom(seance)}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 sm:col-span-2">
+                                    <div className="flex items-center gap-1.5 min-w-0 sm:col-span-2">
                                       <MapPin className="w-3.5 h-3.5 shrink-0" />
                                       <span className="truncate">
                                         {seance.lieu}
@@ -1993,7 +1999,7 @@ export function SeancesPage() {
                   Liste des séances ({filteredSeances.length})
                 </CardTitle>
                 <CardDescription>
-                  Vue tabulaire complète avec statut coloré, photographe, client, spécialité et fin calculée.
+                  Toutes les séances de la période avec leur statut, photographe, client et spécialité.
                 </CardDescription>
               </div>
             </div>
@@ -2015,8 +2021,8 @@ export function SeancesPage() {
                   <thead>
                     <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       <th className="py-3 px-4">Date & Horaire</th>
-                      <th className="py-3 px-4">Spécialité & Lieu</th>
-                      <th className="py-3 px-4">Photographe</th>
+                      <th className="hidden md:table-cell py-3 px-4">Spécialité & Lieu</th>
+                      <th className="hidden lg:table-cell py-3 px-4">Photographe</th>
                       <th className="py-3 px-4">Client</th>
                       <th className="py-3 px-4">Statut</th>
                       <th className="py-3 px-4 text-right">Action</th>
@@ -2048,9 +2054,13 @@ export function SeancesPage() {
                                 {heureDebut} → {heureFin} ({formatDuration(duree)})
                               </span>
                             </div>
+                            <div className="md:hidden text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <Tag className="w-3 h-3 shrink-0" />
+                              <span>{extractSpecialiteLibelle(seance)}</span>
+                            </div>
                           </td>
 
-                          <td className="py-3 px-4">
+                          <td className="hidden md:table-cell py-3 px-4">
                             <div className="font-medium text-foreground flex items-center gap-1.5">
                               <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
                               <span>{extractSpecialiteLibelle(seance)}</span>
@@ -2063,7 +2073,7 @@ export function SeancesPage() {
                             </div>
                           </td>
 
-                          <td className="py-3 px-4 whitespace-nowrap">
+                          <td className="hidden lg:table-cell py-3 px-4 whitespace-nowrap">
                             <div className="font-medium text-foreground">
                               {extractPhotographeNom(seance)}
                             </div>
@@ -2121,7 +2131,7 @@ export function SeancesPage() {
                                   type="button"
                                   size="xs"
                                   onClick={() => setSeanceToInvoice(seance)}
-                                  className="cursor-pointer gap-1"
+                                  className="cursor-pointer gap-1 h-8 sm:h-6"
                                 >
                                   <Receipt className="w-3.5 h-3.5" />
                                   <span>Générer la facture</span>
@@ -2146,7 +2156,7 @@ export function SeancesPage() {
                                         )
                                       }
                                       title={meta.label}
-                                      className={`cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50 ${meta.buttonClass}`}
+                                      className={`cursor-pointer inline-flex items-center gap-1 px-2 py-2 sm:py-1 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50 ${meta.buttonClass}`}
                                     >
                                       {isBusy ? (
                                         <Loader2 className="w-3 h-3 animate-spin" />
@@ -2166,7 +2176,7 @@ export function SeancesPage() {
                                 variant="outline"
                                 size="xs"
                                 onClick={() => void handleOpenDetail(seance)}
-                                className="cursor-pointer gap-1"
+                                className="cursor-pointer gap-1 h-8 sm:h-6"
                               >
                                 <Eye className="w-3.5 h-3.5" />
                                 <span>Détails</span>
@@ -2179,7 +2189,7 @@ export function SeancesPage() {
                                   size="xs"
                                   onClick={() => handleOpenEditForm(seance)}
                                   title="Modifier la séance"
-                                  className="cursor-pointer gap-1"
+                                  className="cursor-pointer gap-1 h-8 min-w-8 sm:h-6 sm:min-w-0"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                   <span className="sr-only sm:not-sr-only">
@@ -2194,7 +2204,7 @@ export function SeancesPage() {
                                 size="xs"
                                 onClick={() => setSeanceToDelete(seance)}
                                 title="Supprimer la séance"
-                                className="cursor-pointer gap-1"
+                                className="cursor-pointer gap-1 h-8 min-w-8 sm:h-6 sm:min-w-0"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 <span className="sr-only sm:not-sr-only">
@@ -2220,20 +2230,22 @@ export function SeancesPage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="seance-detail-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 backdrop-blur-xs p-4"
           onClick={handleCloseDetail}
         >
           <div
-            className="w-full max-w-2xl text-left my-8"
+            className="my-auto w-full max-w-2xl text-left"
             onClick={(e) => e.stopPropagation()}
           >
             <Card className="shadow-2xl border-border">
               <CardHeader className="border-b border-border pb-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="space-y-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle id="seance-detail-title" className="text-lg">
-                        Séance photo #{selectedSeanceId}
+                      <CardTitle id="seance-detail-title" className="text-lg break-words">
+                        {seanceDetail
+                          ? extractSpecialiteLibelle(seanceDetail)
+                          : "Séance photo"}
                       </CardTitle>
                       {seanceDetail && (
                         <span
@@ -2261,18 +2273,18 @@ export function SeancesPage() {
                         </span>
                       )}
                     </div>
-                    <CardDescription>
-                      Fiche détaillée de la séance récupérée depuis{" "}
-                      <code className="text-xs">
-                        GET /seances/{selectedSeanceId}
-                      </code>
-                    </CardDescription>
+                    {seanceDetail && (
+                      <CardDescription className="break-words">
+                        Séance du {formatDateLongFr(extractSeanceDate(seanceDetail))}{" "}
+                        pour {extractClientNom(seanceDetail)}
+                      </CardDescription>
+                    )}
                   </div>
 
                   <button
                     type="button"
                     onClick={handleCloseDetail}
-                    className="cursor-pointer p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                    className="cursor-pointer shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
                     aria-label="Fermer le détail"
                   >
                     <X className="w-5 h-5" />
@@ -2284,7 +2296,7 @@ export function SeancesPage() {
                 {loadingDetail && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    <span>Actualisation des données détaillées...</span>
+                    <span>Chargement du détail de la séance...</span>
                   </div>
                 )}
 
@@ -2310,7 +2322,7 @@ export function SeancesPage() {
                       <div className="space-y-1">
                         <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5" />
-                          <span>Horaires & Fin calculée</span>
+                          <span>Horaires</span>
                         </div>
                         <div className="text-sm font-semibold font-mono text-foreground">
                           {extractHeureDebut(seanceDetail)} →{" "}
@@ -2320,7 +2332,7 @@ export function SeancesPage() {
                           </span>
                         </div>
                         <div className="text-[11px] text-muted-foreground">
-                          Fin calculée : {extractFinIsoOrFormatted(seanceDetail)}
+                          Fin prévue : {extractFinIsoOrFormatted(seanceDetail)}
                         </div>
                       </div>
 
@@ -2329,7 +2341,7 @@ export function SeancesPage() {
                           <Tag className="w-3.5 h-3.5" />
                           <span>Spécialité (Type de séance)</span>
                         </div>
-                        <div className="text-sm font-semibold text-foreground">
+                        <div className="text-sm font-semibold text-foreground break-words">
                           {extractSpecialiteLibelle(seanceDetail)}
                         </div>
                       </div>
@@ -2339,7 +2351,7 @@ export function SeancesPage() {
                           <MapPin className="w-3.5 h-3.5" />
                           <span>Lieu</span>
                         </div>
-                        <div className="text-sm font-semibold text-foreground">
+                        <div className="text-sm font-semibold text-foreground break-words">
                           {seanceDetail.lieu}
                         </div>
                       </div>
@@ -2348,8 +2360,8 @@ export function SeancesPage() {
                     {/* Bloc 2 : Photographe & Client */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Photographe */}
-                      <div className="p-4 rounded-xl border border-border bg-card space-y-2">
-                        <div className="flex items-center justify-between">
+                      <div className="min-w-0 p-4 rounded-xl border border-border bg-card space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                             <Camera className="w-3.5 h-3.5 text-primary" />
                             Photographe
@@ -2374,19 +2386,19 @@ export function SeancesPage() {
                             </span>
                           )}
                         </div>
-                        <div className="text-sm font-bold text-foreground">
+                        <div className="text-sm font-bold text-foreground break-words">
                           {extractPhotographeNom(seanceDetail)}
                         </div>
                         {extractPhotographeEmail(seanceDetail) && (
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground break-all">
                             {extractPhotographeEmail(seanceDetail)}
                           </div>
                         )}
                       </div>
 
                       {/* Client */}
-                      <div className="p-4 rounded-xl border border-border bg-card space-y-2">
-                        <div className="flex items-center justify-between">
+                      <div className="min-w-0 p-4 rounded-xl border border-border bg-card space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                             <User className="w-3.5 h-3.5 text-primary" />
                             Client
@@ -2394,28 +2406,30 @@ export function SeancesPage() {
                           {(seanceDetail.client?.typeClient ||
                             seanceDetail.client?.type) && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary text-secondary-foreground border border-border">
-                              {seanceDetail.client.typeClient ??
-                                seanceDetail.client.type}
+                              {TYPE_CLIENT_LABELS[
+                                (seanceDetail.client.typeClient ??
+                                  seanceDetail.client.type) as TypeClient
+                              ]}
                             </span>
                           )}
                         </div>
-                        <div className="text-sm font-bold text-foreground">
+                        <div className="text-sm font-bold text-foreground break-words">
                           {extractClientNom(seanceDetail)}
                         </div>
                         {(seanceDetail.client?.email ||
                           seanceDetail.clientEmail) && (
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground break-all">
                             {seanceDetail.client?.email ??
                               seanceDetail.clientEmail}
                           </div>
                         )}
                         {seanceDetail.client?.adressePostale && (
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground break-words">
                             {seanceDetail.client.adressePostale}
                           </div>
                         )}
                         {seanceDetail.client?.numeroSirenTva && (
-                          <div className="text-[11px] font-mono text-muted-foreground">
+                          <div className="text-[11px] font-mono text-muted-foreground break-all">
                             SIREN / TVA : {seanceDetail.client.numeroSirenTva}
                           </div>
                         )}
@@ -2446,7 +2460,7 @@ export function SeancesPage() {
                                     type="button"
                                     size="sm"
                                     onClick={() => setSeanceToInvoice(seanceDetail)}
-                                    className="cursor-pointer gap-1.5 shrink-0"
+                                    className="cursor-pointer gap-1.5 shrink-0 w-full sm:w-auto h-9 sm:h-7"
                                   >
                                     <Receipt className="w-4 h-4" />
                                     <span>Générer la facture</span>
@@ -2475,7 +2489,7 @@ export function SeancesPage() {
                                 variant="outline"
                                 size="xs"
                                 onClick={() => navigate("/factures")}
-                                className="cursor-pointer gap-1"
+                                className="cursor-pointer gap-1 h-8 sm:h-6"
                               >
                                 <ExternalLink className="w-3 h-3" />
                                 <span>Voir dans les factures</span>
@@ -2487,7 +2501,7 @@ export function SeancesPage() {
                                 <div className="text-xs text-muted-foreground">
                                   Numéro
                                 </div>
-                                <div className="text-sm font-mono font-bold text-foreground">
+                                <div className="text-sm font-mono font-bold text-foreground break-all">
                                   {facture.numero}
                                 </div>
                                 {facture.dateEmission && (
@@ -2569,7 +2583,7 @@ export function SeancesPage() {
 
                         if (transitions.length === 0) {
                           return (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-2.5 rounded-lg border border-border">
+                            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-2.5 rounded-lg border border-border">
                               <Lock className="w-3.5 h-3.5 shrink-0" />
                               <span>
                                 Le statut{" "}
@@ -2581,8 +2595,7 @@ export function SeancesPage() {
                                     ).label
                                   }
                                 </strong>{" "}
-                                est final : aucune transition de statut
-                                supplémentaire n'est possible.
+                                est final : il ne peut plus être modifié.
                               </span>
                             </div>
                           );
@@ -2609,7 +2622,7 @@ export function SeancesPage() {
                                         targetStatut
                                       )
                                     }
-                                    className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${meta.buttonClass}`}
+                                    className={`cursor-pointer inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${meta.buttonClass}`}
                                   >
                                     {isBusy ? (
                                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -2626,10 +2639,9 @@ export function SeancesPage() {
 
                             {seanceDetail.statut === "CONFIRMEE" && !finPassee && (
                               <p className="text-[11px] text-muted-foreground">
-                                Note : le passage à « Terminée » n'est accepté
-                                par le serveur que lorsque la fin de la séance (
-                                {extractFinIsoOrFormatted(seanceDetail)}) est
-                                passée.
+                                Une séance ne peut passer à « Terminée » qu'une
+                                fois son heure de fin passée (
+                                {extractFinIsoOrFormatted(seanceDetail)}).
                               </p>
                             )}
                           </div>
@@ -2639,16 +2651,16 @@ export function SeancesPage() {
                   </>
                 )}
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
+                <div className="flex flex-col-reverse gap-2 pt-2 border-t border-border sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   {seanceDetail ? (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                       {seanceDetail.statut === "TERMINEE" &&
                         !resolveFactureForSeance(seanceDetail, facturesApi) && (
                           <Button
                             type="button"
                             size="sm"
                             onClick={() => setSeanceToInvoice(seanceDetail)}
-                            className="cursor-pointer gap-1.5"
+                            className="cursor-pointer gap-1.5 w-full sm:w-auto h-9 sm:h-7"
                           >
                             <Receipt className="w-4 h-4" />
                             <span>Générer la facture</span>
@@ -2661,15 +2673,15 @@ export function SeancesPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleOpenEditForm(seanceDetail)}
-                          className="cursor-pointer gap-1.5"
+                          className="cursor-pointer gap-1.5 w-full sm:w-auto h-9 sm:h-7"
                         >
                           <Pencil className="w-4 h-4" />
                           <span>Modifier la séance</span>
                         </Button>
                       ) : (
                         <span
-                          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground px-2.5 py-1 rounded-lg bg-muted/60 border border-border"
-                          title="Une séance TERMINEE ou ANNULEE ne peut plus être modifiée"
+                          className="inline-flex items-center justify-center gap-1.5 text-xs text-muted-foreground px-2.5 py-2 sm:py-1 rounded-lg bg-muted/60 border border-border"
+                          title="Une séance terminée ou annulée ne peut plus être modifiée"
                         >
                           <Lock className="w-3.5 h-3.5" />
                           <span>Modification verrouillée ({STATUT_STYLES[seanceDetail.statut]?.label})</span>
@@ -2681,21 +2693,21 @@ export function SeancesPage() {
                         variant="destructive"
                         size="sm"
                         onClick={() => setSeanceToDelete(seanceDetail)}
-                        className="cursor-pointer gap-1.5"
+                        className="cursor-pointer gap-1.5 w-full sm:w-auto h-9 sm:h-7"
                       >
                         <Trash2 className="w-4 h-4" />
                         <span>Supprimer la séance</span>
                       </Button>
                     </div>
                   ) : (
-                    <div />
+                    <div className="hidden sm:block" />
                   )}
 
                   <Button
                     type="button"
                     variant="outline"
                     onClick={handleCloseDetail}
-                    className="cursor-pointer"
+                    className="cursor-pointer w-full sm:w-auto h-9 sm:h-8"
                   >
                     Fermer
                   </Button>
@@ -2712,22 +2724,22 @@ export function SeancesPage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="seance-form-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 backdrop-blur-xs p-4"
           onClick={handleCloseForm}
         >
           <div
-            className="w-full max-w-2xl text-left my-8"
+            className="my-auto w-full max-w-2xl text-left"
             onClick={(e) => e.stopPropagation()}
           >
             <Card className="shadow-2xl border-border">
               <CardHeader className="border-b border-border pb-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="space-y-1 min-w-0">
                     <CardTitle id="seance-form-title" className="text-lg flex items-center gap-2">
                       {editingSeance ? (
                         <>
                           <Pencil className="w-4 h-4 text-primary" />
-                          <span>Modifier la séance #{editingSeance.id}</span>
+                          <span>Modifier la séance</span>
                         </>
                       ) : (
                         <>
@@ -2739,7 +2751,7 @@ export function SeancesPage() {
                     <CardDescription>
                       {editingSeance
                         ? "Modifiez les informations de la séance (date, heure, durée, lieu, spécialité, photographe actif qualifié et client)."
-                        : "Renseignez les informations de la prestation. Le statut initial sera « Planifiée » (PLANIFIEE)."}
+                        : "Renseignez les informations de la prestation. Le statut initial sera « Planifiée »."}
                     </CardDescription>
                   </div>
 
@@ -2747,7 +2759,7 @@ export function SeancesPage() {
                     type="button"
                     onClick={handleCloseForm}
                     disabled={isSubmittingForm}
-                    className="cursor-pointer p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+                    className="cursor-pointer shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
                     aria-label="Fermer le formulaire"
                   >
                     <X className="w-5 h-5" />
@@ -2879,7 +2891,7 @@ export function SeancesPage() {
                         </div>
 
                         {/* Raccourcis de durée + aperçu de l'heure de fin */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-muted/40 px-3 py-2 border border-border">
+                        <div className="flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between rounded-xl bg-muted/40 px-3 py-2 border border-border">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="text-xs text-muted-foreground mr-1">
                               Durées rapides :
@@ -2897,7 +2909,7 @@ export function SeancesPage() {
                                       dureeMinutes: String(preset.value),
                                     }))
                                   }
-                                  className={`cursor-pointer px-2 py-0.5 rounded-md text-xs font-medium border transition-colors ${
+                                  className={`cursor-pointer px-2.5 py-1.5 sm:px-2 sm:py-0.5 rounded-md text-xs font-medium border transition-colors ${
                                     isSelected
                                       ? "bg-primary text-primary-foreground border-primary"
                                       : "bg-background text-muted-foreground border-border hover:text-foreground"
@@ -3068,20 +3080,20 @@ export function SeancesPage() {
                     );
                   })()}
 
-                  <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                  <div className="flex flex-col-reverse gap-2 pt-3 border-t border-border sm:flex-row sm:justify-end">
                     <Button
                       type="button"
                       variant="outline"
                       onClick={handleCloseForm}
                       disabled={isSubmittingForm}
-                      className="cursor-pointer"
+                      className="cursor-pointer w-full sm:w-auto h-9 sm:h-8"
                     >
                       Annuler
                     </Button>
                     <Button
                       type="submit"
                       disabled={isSubmittingForm}
-                      className="cursor-pointer gap-1.5"
+                      className="cursor-pointer gap-1.5 w-full sm:w-auto h-9 sm:h-8"
                     >
                       {isSubmittingForm && (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -3109,15 +3121,15 @@ export function SeancesPage() {
         title="Supprimer cette séance ?"
         description={
           seanceToDelete
-            ? `Vous êtes sur le point de supprimer définitivement la séance #${seanceToDelete.id} (${extractSpecialiteLibelle(
+            ? `Vous êtes sur le point de supprimer définitivement la séance « ${extractSpecialiteLibelle(
                 seanceToDelete
-              )} pour ${extractClientNom(
+              )} » de ${extractClientNom(
                 seanceToDelete
               )} le ${formatDateShortFr(
                 extractSeanceDate(seanceToDelete)
               )} à ${extractHeureDebut(
                 seanceToDelete
-              )}). Si une facture est associée à cette séance, la suppression sera refusée par le serveur.`
+              )}. Une séance déjà facturée ne peut pas être supprimée.`
             : undefined
         }
         confirmLabel="Supprimer définitivement"

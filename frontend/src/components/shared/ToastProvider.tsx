@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
 import { AlertCircle, CheckCircle2, Info, AlertTriangle, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { FieldErrorList } from "@/components/shared/FieldErrorList";
 
 export type ToastVariant = "success" | "error" | "info" | "warning";
 
@@ -71,23 +72,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 
   const showApiError = useCallback(
-    (err: unknown, fallbackTitle = "Erreur") => {
+    (err: unknown, fallbackTitle?: string) => {
       if (err instanceof ApiError) {
+        // Le titre fourni par l'appelant décrit l'action en échec : plus parlant que le titre générique
         toast({
-          title: err.problem?.title || fallbackTitle,
-          description: err.problem?.detail || err.message,
+          title: fallbackTitle ?? err.title,
+          description: err.message,
           fieldErrors: err.fieldErrors,
           variant: "error",
         });
       } else if (err instanceof Error) {
         toast({
-          title: fallbackTitle,
+          title: fallbackTitle ?? "Erreur",
           description: err.message,
           variant: "error",
         });
       } else {
         toast({
-          title: fallbackTitle,
+          title: fallbackTitle ?? "Erreur",
           description: "Une erreur inattendue est survenue.",
           variant: "error",
         });
@@ -101,7 +103,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm pointer-events-none px-4 sm:px-0"
+        className="fixed bottom-4 inset-x-0 sm:inset-x-auto sm:right-4 z-50 flex flex-col gap-2 w-full sm:max-w-sm pointer-events-none px-4 sm:px-0"
       >
         {toasts.map((item) => {
           const styles: Record<ToastVariant, string> = {
@@ -128,27 +130,25 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               className={`pointer-events-auto flex items-start gap-3 rounded-xl border p-3.5 text-left text-sm transition-all ${styles[item.variant]}`}
             >
               {icons[item.variant]}
-              <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex-1 min-w-0 space-y-1 break-words">
                 <div className="font-semibold leading-tight">{item.title}</div>
                 {item.description && (
                   <div className="text-xs text-muted-foreground leading-snug">
                     {item.description}
                   </div>
                 )}
-                {item.fieldErrors && Object.keys(item.fieldErrors).length > 0 && (
-                  <ul className="text-xs text-destructive list-disc list-inside pt-1 space-y-0.5">
-                    {Object.entries(item.fieldErrors).map(([field, msg]) => (
-                      <li key={field}>
-                        <span className="font-medium">{field}</span> : {msg}
-                      </li>
-                    ))}
-                  </ul>
+                {item.fieldErrors && (
+                  <FieldErrorList
+                    fieldErrors={item.fieldErrors}
+                    excluding={item.description}
+                    className="text-xs text-destructive list-disc list-inside pt-1 space-y-0.5"
+                  />
                 )}
               </div>
               <button
                 type="button"
                 onClick={() => dismiss(item.id)}
-                className="text-muted-foreground hover:text-foreground cursor-pointer p-0.5"
+                className="text-muted-foreground hover:text-foreground cursor-pointer shrink-0 -m-1.5 p-1.5"
                 aria-label="Fermer la notification"
               >
                 <X className="w-4 h-4" />
