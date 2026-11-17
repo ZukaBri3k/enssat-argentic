@@ -24,6 +24,7 @@ import {
   type TypeClient,
 } from "@/lib/api";
 import { useNavigate } from "@/lib/router";
+import { PILL_ACTIVE, TONS } from "@/lib/tons";
 import { GenererFactureModal } from "@/components/factures/GenererFactureModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -86,46 +87,34 @@ const STATUT_STYLES: Record<StatutSeance, StatutStyle> = {
   PLANIFIEE: {
     label: "Planifiée",
     description: "Séance programmée, en attente de confirmation",
-    badgeClass:
-      "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/70 dark:text-blue-300 dark:border-blue-800",
-    cardClass:
-      "border-l-4 border-l-blue-500 bg-blue-50/60 hover:bg-blue-100/60 dark:bg-blue-950/25 dark:hover:bg-blue-950/45 border-blue-200/80 dark:border-blue-900/60",
-    dotClass: "bg-blue-500",
-    pillActiveClass:
-      "bg-blue-600 text-white border-blue-600 shadow-xs hover:bg-blue-700",
+    badgeClass: TONS.info.badge,
+    cardClass: TONS.info.card,
+    dotClass: TONS.info.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
   CONFIRMEE: {
     label: "Confirmée",
     description: "Séance confirmée avec le client",
-    badgeClass:
-      "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800",
-    cardClass:
-      "border-l-4 border-l-emerald-500 bg-emerald-50/60 hover:bg-emerald-100/60 dark:bg-emerald-950/25 dark:hover:bg-emerald-950/45 border-emerald-200/80 dark:border-emerald-900/60",
-    dotClass: "bg-emerald-500",
-    pillActiveClass:
-      "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700",
+    badgeClass: TONS.succes.badge,
+    cardClass: TONS.succes.card,
+    dotClass: TONS.succes.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
   TERMINEE: {
     label: "Terminée",
     description: "Séance réalisée (statut final, facturable)",
-    badgeClass:
-      "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/70 dark:text-purple-300 dark:border-purple-800",
-    cardClass:
-      "border-l-4 border-l-purple-500 bg-purple-50/60 hover:bg-purple-100/60 dark:bg-purple-950/25 dark:hover:bg-purple-950/45 border-purple-200/80 dark:border-purple-900/60",
-    dotClass: "bg-purple-500",
-    pillActiveClass:
-      "bg-purple-600 text-white border-purple-600 shadow-xs hover:bg-purple-700",
+    badgeClass: TONS.accent.badge,
+    cardClass: TONS.accent.card,
+    dotClass: TONS.accent.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
   ANNULEE: {
     label: "Annulée",
     description: "Séance annulée (statut final, le créneau est libéré)",
-    badgeClass:
-      "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800",
-    cardClass:
-      "border-l-4 border-l-rose-500 bg-rose-50/50 hover:bg-rose-100/50 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 border-rose-200/80 dark:border-rose-900/60 opacity-80",
-    dotClass: "bg-rose-500",
-    pillActiveClass:
-      "bg-rose-600 text-white border-rose-600 shadow-xs hover:bg-rose-700",
+    badgeClass: TONS.danger.badge,
+    cardClass: `${TONS.danger.card} opacity-80`,
+    dotClass: TONS.danger.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
 };
 
@@ -142,18 +131,15 @@ const STATUT_PAIEMENT_BADGE: Record<
 > = {
   EN_ATTENTE: {
     label: "En attente",
-    className:
-      "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800",
+    className: TONS.attention.badge,
   },
   PAYEE: {
     label: "Payée",
-    className:
-      "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800",
+    className: TONS.succes.badge,
   },
   ANNULEE: {
     label: "Annulée",
-    className:
-      "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800",
+    className: TONS.danger.badge,
   },
 };
 
@@ -444,29 +430,25 @@ const TRANSITION_META: Record<StatutSeance, TransitionActionMeta> = {
     target: "PLANIFIEE",
     label: "Planifier",
     shortLabel: "Planifier",
-    buttonClass:
-      "border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-200 dark:hover:bg-blue-900/60",
+    buttonClass: TONS.info.button,
   },
   CONFIRMEE: {
     target: "CONFIRMEE",
     label: "Confirmer la séance",
     shortLabel: "Confirmer",
-    buttonClass:
-      "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200 dark:hover:bg-emerald-900/60",
+    buttonClass: TONS.succes.button,
   },
   TERMINEE: {
     target: "TERMINEE",
     label: "Marquer terminée",
     shortLabel: "Terminer",
-    buttonClass:
-      "border-purple-300 bg-purple-50 text-purple-800 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/60 dark:text-purple-200 dark:hover:bg-purple-900/60",
+    buttonClass: TONS.accent.button,
   },
   ANNULEE: {
     target: "ANNULEE",
     label: "Annuler la séance",
     shortLabel: "Annuler",
-    buttonClass:
-      "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200 dark:hover:bg-rose-900/60",
+    buttonClass: TONS.danger.button,
   },
 };
 
@@ -1588,7 +1570,7 @@ export function SeancesPage() {
                   >
                     <span
                       className={`w-2 h-2 rounded-full ${
-                        isSelected ? "bg-white" : style.dotClass
+                        isSelected ? "bg-primary-foreground" : style.dotClass
                       }`}
                     />
                     <span>{style.label}</span>
@@ -1801,12 +1783,12 @@ export function SeancesPage() {
                           {seance.statut === "TERMINEE" && (
                             <div className="pt-1 border-t border-border/50 flex items-center">
                               {facture ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-100/80 text-emerald-800 border border-emerald-300/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 max-w-full truncate">
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold border ${TONS.succes.badge} max-w-full truncate`}>
                                   <FileText className="w-2.5 h-2.5 shrink-0" />
                                   <span className="truncate">{facture.numero}</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100/80 text-amber-800 border border-amber-300/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${TONS.attention.badge}`}>
                                   <Receipt className="w-2.5 h-2.5 shrink-0" />
                                   <span>À facturer</span>
                                 </span>
@@ -1933,12 +1915,12 @@ export function SeancesPage() {
                                     <div className="flex items-center gap-1.5 flex-wrap justify-end">
                                       {seance.statut === "TERMINEE" &&
                                         (facture ? (
-                                          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full border bg-emerald-100/80 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                                          <span className={`inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full border ${TONS.succes.badge}`}>
                                             <FileText className="w-3 h-3" />
                                             <span>{facture.numero}</span>
                                           </span>
                                         ) : (
-                                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-amber-100/80 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                                          <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${TONS.attention.badge}`}>
                                             <Receipt className="w-3 h-3" />
                                             <span>À facturer</span>
                                           </span>
@@ -2112,7 +2094,7 @@ export function SeancesPage() {
                                 </span>
                               ) : (
                                 seance.statut === "TERMINEE" && (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                                  <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${TONS.attention.text}`}>
                                     <Receipt className="w-3 h-3" />
                                     À facturer
                                   </span>
@@ -2370,7 +2352,7 @@ export function SeancesPage() {
                             <span
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                                 seanceDetail.photographe.actif
-                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  ? TONS.succes.badge
                                   : "bg-muted text-muted-foreground"
                               }`}
                             >
@@ -2779,9 +2761,9 @@ export function SeancesPage() {
                   {formValidationWarnings.debutPasse && (
                     <div
                       role="alert"
-                      className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-50/80 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200"
+                      className={`flex items-start gap-2.5 rounded-xl border ${TONS.attention.surface} p-3 text-xs text-foreground`}
                     >
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <AlertTriangle className={`w-4 h-4 ${TONS.attention.text} shrink-0 mt-0.5`} />
                       <div>
                         <span className="font-semibold">Créneau dans le passé : </span>
                         {formValidationWarnings.debutPasse}
@@ -3008,7 +2990,7 @@ export function SeancesPage() {
                               {eligiblePhotographesForForm.length > 1 ? "s" : ""}).
                             </p>
                             {photographeNotice && (
-                              <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                              <p className={`text-[11px] ${TONS.attention.text} font-medium`}>
                                 {photographeNotice}
                               </p>
                             )}

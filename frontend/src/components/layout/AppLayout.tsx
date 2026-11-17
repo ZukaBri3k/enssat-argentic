@@ -5,6 +5,7 @@ import { useToast } from "@/components/shared/ToastProvider";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "@/lib/api";
+import { TONS } from "@/lib/tons";
 import {
   Camera,
   Users,
@@ -86,10 +87,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const roleBadge = user && (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-        isGestionnaire
-          ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
-          : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+        isGestionnaire ? TONS.accent.badge : TONS.info.badge
       }`}
     >
       {isGestionnaire ? <ShieldCheck className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
