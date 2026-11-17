@@ -2,6 +2,7 @@ package fr.goat.argentic.controller;
 
 import fr.goat.argentic.dto.FactureRequest;
 import fr.goat.argentic.dto.FactureResponse;
+import fr.goat.argentic.dto.PaiementFactureRequest;
 import fr.goat.argentic.exception.GlobalExceptionHandler;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
@@ -180,5 +181,102 @@ class FactureControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.detail").value("Facture non trouvée avec l'id : 999"));
+    }
+
+    @Test
+    @DisplayName("POST /factures/{id}/paiement renvoie 200 et la facture PAYEE avec sa date de paiement")
+    void enregistrerPaiement_valide_doitRetourner200() throws Exception {
+        PaiementFactureRequest attendu = new PaiementFactureRequest(LocalDate.of(2026, 11, 17));
+        when(factureService.enregistrerPaiement(42L, attendu))
+                .thenReturn(factureAvecStatut(StatutPaiement.PAYEE, LocalDate.of(2026, 11, 17)));
+
+        mockMvc.perform(post("/factures/42/paiement")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"datePaiement": "2026-11-17"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(42))
+                .andExpect(jsonPath("$.statutPaiement").value("PAYEE"))
+                .andExpect(jsonPath("$.datePaiement").value("2026-11-17"));
+    }
+
+    @Test
+    @DisplayName("POST /factures/{id}/paiement renvoie 400 en ProblemDetail si la date de paiement est manquante")
+    void enregistrerPaiement_sansDate_doitRetourner400() throws Exception {
+        mockMvc.perform(post("/factures/42/paiement")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.errors.datePaiement").exists());
+
+        verifyNoInteractions(factureService);
+    }
+
+    @Test
+    @DisplayName("POST /factures/{id}/paiement renvoie 409 en ProblemDetail si la facture n'est pas EN_ATTENTE")
+    void enregistrerPaiement_factureNonEnAttente_doitRetourner409() throws Exception {
+        when(factureService.enregistrerPaiement(eq(42L), any(PaiementFactureRequest.class)))
+                .thenThrow(new RegleMetierException("La facture FAC-2026-0001 est au statut ANNULEE : seule une facture EN_ATTENTE peut être payée ou annulée."));
+
+        mockMvc.perform(post("/factures/42/paiement")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"datePaiement": "2026-11-17"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").value("La facture FAC-2026-0001 est au statut ANNULEE : seule une facture EN_ATTENTE peut être payée ou annulée."));
+    }
+
+    @Test
+    @DisplayName("POST /factures/{id}/annulation renvoie 200 et la facture ANNULEE")
+    void annulerFacture_valide_doitRetourner200() throws Exception {
+        when(factureService.annulerFacture(42L)).thenReturn(factureAvecStatut(StatutPaiement.ANNULEE, null));
+
+        mockMvc.perform(post("/factures/42/annulation"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(42))
+                .andExpect(jsonPath("$.statutPaiement").value("ANNULEE"));
+    }
+
+    @Test
+    @DisplayName("POST /factures/{id}/annulation renvoie 409 en ProblemDetail si la facture n'est pas EN_ATTENTE")
+    void annulerFacture_factureNonEnAttente_doitRetourner409() throws Exception {
+        when(factureService.annulerFacture(42L))
+                .thenThrow(new RegleMetierException("La facture FAC-2026-0001 est au statut PAYEE : seule une facture EN_ATTENTE peut être payée ou annulée."));
+
+        mockMvc.perform(post("/factures/42/annulation"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").value("La facture FAC-2026-0001 est au statut PAYEE : seule une facture EN_ATTENTE peut être payée ou annulée."));
+    }
+
+    @Test
+    @DisplayName("POST /factures/{id}/annulation renvoie 404 en ProblemDetail si la facture est introuvable")
+    void annulerFacture_inexistante_doitRetourner404() throws Exception {
+        when(factureService.annulerFacture(999L))
+                .thenThrow(new ResourceNotFoundException("Facture non trouvée avec l'id : 999"));
+
+        mockMvc.perform(post("/factures/999/annulation"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+    }
+
+    private FactureResponse factureAvecStatut(StatutPaiement statut, LocalDate datePaiement) {
+        return new FactureResponse(
+                factureResponse.id(),
+                factureResponse.numero(),
+                factureResponse.seanceId(),
+                factureResponse.dateEmission(),
+                factureResponse.montantHt(),
+                factureResponse.tauxTva(),
+                factureResponse.montantTtc(),
+                statut,
+                datePaiement,
+                factureResponse.coordonneesClient(),
+                factureResponse.prestation()
+        );
     }
 }
