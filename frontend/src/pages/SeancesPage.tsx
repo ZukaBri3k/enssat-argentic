@@ -1272,7 +1272,7 @@ export function SeancesPage() {
         </div>
 
         {/* Sélecteur de vue (Semaine / Jour / Liste) + bouton Actualiser */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap lg:shrink-0">
           <div
             role="tablist"
             aria-label="Mode d'affichage du planning"

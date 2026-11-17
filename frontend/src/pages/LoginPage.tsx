@@ -78,7 +78,7 @@ export function LoginPage() {
       <main className="w-full flex items-center justify-center py-6">
         <div className="w-full max-w-md mx-auto text-left">
           <Card className="shadow-xl border-border">
-            <CardHeader className="space-y-2 text-center items-center pb-4">
+            <CardHeader className="space-y-2 text-center justify-items-center pb-4">
               <div className="p-3 rounded-2xl bg-primary text-primary-foreground shadow-sm">
                 <Camera className="w-7 h-7" />
               </div>
