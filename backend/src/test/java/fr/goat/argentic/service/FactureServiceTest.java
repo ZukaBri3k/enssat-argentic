@@ -2,6 +2,8 @@ package fr.goat.argentic.service;
 
 import fr.goat.argentic.dto.FactureRequest;
 import fr.goat.argentic.dto.FactureResponse;
+import fr.goat.argentic.dto.PaiementFactureRequest;
+import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
 import org.mockito.InjectMocks;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -586,6 +588,134 @@ class FactureServiceTest {
         when(factureRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> factureService.getFactureById(999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("999");
+    }
+
+    // ==================== Paiement et annulation (#14) ====================
+
+    @Test
+    @DisplayName("enregistrerPaiement passe une facture EN_ATTENTE à PAYEE avec la date de paiement saisie")
+    void enregistrerPaiement_factureEnAttente_doitPasserAPayeeAvecDatePaiement() {
+        Facture facture = factureAvecNumero(seanceTerminee, "FAC-2026-0001", LocalDate.of(2026, 11, 11));
+        facture.setId(10L);
+        LocalDate datePaiement = LocalDate.of(2026, 11, 15);
+
+        when(factureRepository.findById(10L)).thenReturn(Optional.of(facture));
+
+        FactureResponse res = factureService.enregistrerPaiement(10L, new PaiementFactureRequest(datePaiement));
+
+        assertThat(res.id()).isEqualTo(10L);
+        assertThat(res.statutPaiement()).isEqualTo(StatutPaiement.PAYEE);
+        assertThat(res.datePaiement()).isEqualTo(datePaiement);
+    }
+
+    @ParameterizedTest(name = "statut={0}")
+    @EnumSource(value = StatutPaiement.class, names = {"PAYEE", "ANNULEE"})
+    @DisplayName("enregistrerPaiement lève RegleMetierException (409) si la facture n'est pas EN_ATTENTE")
+    void enregistrerPaiement_factureNonEnAttente_doitLeverRegleMetierException(StatutPaiement statut) {
+        Facture facture = factureAvecNumero(seanceTerminee, "FAC-2026-0001", LocalDate.of(2026, 11, 11));
+        facture.setId(10L);
+        facture.setStatutPaiement(statut);
+
+        when(factureRepository.findById(10L)).thenReturn(Optional.of(facture));
+
+        assertThatThrownBy(() -> factureService.enregistrerPaiement(10L, new PaiementFactureRequest(LocalDate.of(2026, 11, 15))))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("EN_ATTENTE");
+
+        assertThat(facture.getStatutPaiement()).isEqualTo(statut);
+        assertThat(facture.getDatePaiement()).isNull();
+    }
+
+    @Test
+    @DisplayName("enregistrerPaiement lève DonneeInvalideException (400) si la date de paiement est absente")
+    void enregistrerPaiement_sansDatePaiement_doitLeverDonneeInvalideException() {
+        assertThatThrownBy(() -> factureService.enregistrerPaiement(10L, new PaiementFactureRequest(null)))
+                .isInstanceOf(DonneeInvalideException.class)
+                .hasMessageContaining("obligatoire");
+
+        verifyNoInteractions(factureRepository);
+    }
+
+    @Test
+    @DisplayName("enregistrerPaiement lève RegleMetierException (409) si la date de paiement précède la date d'émission")
+    void enregistrerPaiement_datePaiementAvantEmission_doitLeverRegleMetierException() {
+        Facture facture = factureAvecNumero(seanceTerminee, "FAC-2026-0001", LocalDate.of(2026, 11, 11));
+        facture.setId(10L);
+
+        when(factureRepository.findById(10L)).thenReturn(Optional.of(facture));
+
+        assertThatThrownBy(() -> factureService.enregistrerPaiement(10L, new PaiementFactureRequest(LocalDate.of(2026, 11, 10))))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("émission");
+
+        assertThat(facture.getStatutPaiement()).isEqualTo(StatutPaiement.EN_ATTENTE);
+    }
+
+    @Test
+    @DisplayName("enregistrerPaiement lève RegleMetierException (409) si la date de paiement est dans le futur")
+    void enregistrerPaiement_datePaiementFuture_doitLeverRegleMetierException() {
+        Facture facture = factureAvecNumero(seanceTerminee, "FAC-2026-0001", LocalDate.of(2026, 11, 11));
+        facture.setId(10L);
+
+        when(factureRepository.findById(10L)).thenReturn(Optional.of(facture));
+
+        assertThatThrownBy(() -> factureService.enregistrerPaiement(10L, new PaiementFactureRequest(LocalDate.now().plusDays(1))))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("futur");
+
+        assertThat(facture.getStatutPaiement()).isEqualTo(StatutPaiement.EN_ATTENTE);
+    }
+
+    @Test
+    @DisplayName("enregistrerPaiement lève ResourceNotFoundException (404) si la facture est introuvable")
+    void enregistrerPaiement_factureInexistante_doitLeverResourceNotFoundException() {
+        when(factureRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> factureService.enregistrerPaiement(999L, new PaiementFactureRequest(LocalDate.of(2026, 11, 15))))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("999");
+    }
+
+    @Test
+    @DisplayName("annulerFacture passe une facture EN_ATTENTE à ANNULEE sans date de paiement")
+    void annulerFacture_factureEnAttente_doitPasserAAnnulee() {
+        Facture facture = factureAvecNumero(seanceTerminee, "FAC-2026-0001", LocalDate.of(2026, 11, 11));
+        facture.setId(10L);
+
+        when(factureRepository.findById(10L)).thenReturn(Optional.of(facture));
+
+        FactureResponse res = factureService.annulerFacture(10L);
+
+        assertThat(res.id()).isEqualTo(10L);
+        assertThat(res.statutPaiement()).isEqualTo(StatutPaiement.ANNULEE);
+        assertThat(res.datePaiement()).isNull();
+    }
+
+    @ParameterizedTest(name = "statut={0}")
+    @EnumSource(value = StatutPaiement.class, names = {"PAYEE", "ANNULEE"})
+    @DisplayName("annulerFacture lève RegleMetierException (409) si la facture n'est pas EN_ATTENTE")
+    void annulerFacture_factureNonEnAttente_doitLeverRegleMetierException(StatutPaiement statut) {
+        Facture facture = factureAvecNumero(seanceTerminee, "FAC-2026-0001", LocalDate.of(2026, 11, 11));
+        facture.setId(10L);
+        facture.setStatutPaiement(statut);
+
+        when(factureRepository.findById(10L)).thenReturn(Optional.of(facture));
+
+        assertThatThrownBy(() -> factureService.annulerFacture(10L))
+                .isInstanceOf(RegleMetierException.class)
+                .hasMessageContaining("EN_ATTENTE");
+
+        assertThat(facture.getStatutPaiement()).isEqualTo(statut);
+    }
+
+    @Test
+    @DisplayName("annulerFacture lève ResourceNotFoundException (404) si la facture est introuvable")
+    void annulerFacture_factureInexistante_doitLeverResourceNotFoundException() {
+        when(factureRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> factureService.annulerFacture(999L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("999");
     }

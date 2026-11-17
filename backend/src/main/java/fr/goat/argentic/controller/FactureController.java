@@ -2,6 +2,7 @@ package fr.goat.argentic.controller;
 
 import fr.goat.argentic.dto.FactureRequest;
 import fr.goat.argentic.dto.FactureResponse;
+import fr.goat.argentic.dto.PaiementFactureRequest;
 import fr.goat.argentic.model.StatutPaiement;
 import fr.goat.argentic.service.FactureService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,7 +29,7 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@Tag(name = "Factures", description = "Génération et consultation des factures")
+@Tag(name = "Factures", description = "Génération, consultation, paiement et annulation des factures")
 public class FactureController {
 
     private final FactureService factureService;
@@ -96,5 +97,46 @@ public class FactureController {
             @PathVariable("id") Long id
     ) {
         return ResponseEntity.ok(factureService.getFactureById(id));
+    }
+
+    @PostMapping("/factures/{id}/paiement")
+    @Operation(
+            summary = "Enregistrer le paiement d'une facture",
+            description = "Passe la facture au statut PAYEE avec la date de règlement saisie. "
+                    + "La date de paiement doit être comprise entre la date d'émission et aujourd'hui. "
+                    + "Refusé (409) si la facture n'est pas EN_ATTENTE ou si la date est hors de cet intervalle."
+    )
+    @ApiResponse(responseCode = "200", description = "Paiement enregistré, facture PAYEE")
+    @ApiResponse(responseCode = "400", description = "Date de paiement manquante ou mal formée",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "Facture introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "409", description = "Facture déjà PAYEE ou ANNULEE, ou date de paiement antérieure à l'émission ou dans le futur",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<FactureResponse> enregistrerPaiement(
+            @Parameter(description = "Identifiant de la facture", example = "1")
+            @PathVariable("id") Long id,
+            @Valid @RequestBody PaiementFactureRequest request
+    ) {
+        return ResponseEntity.ok(factureService.enregistrerPaiement(id, request));
+    }
+
+    @PostMapping("/factures/{id}/annulation")
+    @Operation(
+            summary = "Annuler une facture",
+            description = "Passe la facture au statut ANNULEE. L'annulation est définitive : "
+                    + "la séance associée ne pourra pas être refacturée. "
+                    + "Refusé (409) si la facture n'est pas EN_ATTENTE."
+    )
+    @ApiResponse(responseCode = "200", description = "Facture annulée")
+    @ApiResponse(responseCode = "404", description = "Facture introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "409", description = "Facture déjà PAYEE ou ANNULEE",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<FactureResponse> annulerFacture(
+            @Parameter(description = "Identifiant de la facture", example = "1")
+            @PathVariable("id") Long id
+    ) {
+        return ResponseEntity.ok(factureService.annulerFacture(id));
     }
 }
