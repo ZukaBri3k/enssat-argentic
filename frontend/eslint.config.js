@@ -18,5 +18,22 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Hooks et helpers exportés à côté de leur Provider / composant
+      'react-refresh/only-export-components': [
+        'error',
+        {
+          allowConstantExport: true,
+          allowExportNames: [
+            'useAuth',
+            'useToast',
+            'useLocation',
+            'useNavigate',
+            'hasRequiredRole',
+            'buttonVariants',
+          ],
+        },
+      ],
+    },
   },
 ])

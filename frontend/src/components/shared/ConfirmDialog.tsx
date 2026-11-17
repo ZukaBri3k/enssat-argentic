@@ -53,13 +53,13 @@ export function ConfirmDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 backdrop-blur-xs p-4"
       onClick={() => {
         if (!isLoading) onOpenChange(false);
       }}
     >
       <div
-        className="w-full max-w-md text-left"
+        className="my-auto w-full max-w-md text-left"
         onClick={(e) => e.stopPropagation()}
       >
         <Card className="shadow-2xl border-border">
@@ -83,13 +83,13 @@ export function ConfirmDialog({
 
           {children && <CardContent className="text-sm">{children}</CardContent>}
 
-          <CardFooter className="flex items-center justify-end gap-2">
+          <CardFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isLoading}
-              className="cursor-pointer"
+              className="cursor-pointer w-full sm:w-auto"
             >
               {cancelLabel}
             </Button>
@@ -98,7 +98,7 @@ export function ConfirmDialog({
               variant={variant === "destructive" ? "destructive" : "default"}
               onClick={onConfirm}
               disabled={isLoading}
-              className="cursor-pointer flex items-center gap-1.5"
+              className="cursor-pointer flex items-center gap-1.5 w-full sm:w-auto"
             >
               {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
               <span>{confirmLabel}</span>
