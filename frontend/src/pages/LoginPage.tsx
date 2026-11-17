@@ -68,14 +68,11 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen w-full flex flex-col justify-between p-4 md:p-8 bg-gradient-to-b from-background via-muted/30 to-background">
-      <header className="w-full max-w-5xl mx-auto flex items-center justify-between py-2">
+      <header className="w-full max-w-5xl mx-auto flex items-center py-2">
         <div className="flex items-center gap-2 text-foreground font-semibold tracking-tight">
           <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block"></span>
           <span>Studio Argentic</span>
         </div>
-        <span className="text-xs text-muted-foreground font-mono">
-          API : {import.meta.env.VITE_API_URL || "http://localhost:8080"}
-        </span>
       </header>
 
       <main className="w-full flex items-center justify-center py-6">
@@ -133,7 +130,7 @@ export function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
                       aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -141,34 +138,34 @@ export function LoginPage() {
                   </div>
                 </div>
 
-                {/* Comptes de test rapides (seed) */}
+                {/* Connexion rapide : préremplit les identifiants des comptes de démonstration */}
                 <div className="pt-2">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Comptes de test (seed) :</span>
+                    <span>Connexion rapide :</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="w-full text-xs cursor-pointer flex flex-col items-start py-2 h-auto"
+                      className="w-full min-w-0 text-xs cursor-pointer flex flex-col items-start py-2 h-auto"
                       onClick={() => fillCredentials("secretaire@argentic.fr", "secretaire")}
                       disabled={isSubmitting || authLoading}
                     >
                       <span className="font-semibold text-foreground">Secrétaire</span>
-                      <span className="text-[10px] text-muted-foreground">secretaire@argentic.fr</span>
+                      <span className="text-[11px] text-muted-foreground truncate max-w-full">secretaire@argentic.fr</span>
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="w-full text-xs cursor-pointer flex flex-col items-start py-2 h-auto"
+                      className="w-full min-w-0 text-xs cursor-pointer flex flex-col items-start py-2 h-auto"
                       onClick={() => fillCredentials("gestionnaire@argentic.fr", "gestionnaire")}
                       disabled={isSubmitting || authLoading}
                     >
                       <span className="font-semibold text-foreground">Gestionnaire</span>
-                      <span className="text-[10px] text-muted-foreground">gestionnaire@argentic.fr</span>
+                      <span className="text-[11px] text-muted-foreground truncate max-w-full">gestionnaire@argentic.fr</span>
                     </Button>
                   </div>
                 </div>

@@ -139,9 +139,10 @@ export function StatistiquesPage() {
   }, []);
 
   useEffect(() => {
+    // Chargement initial uniquement
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchRankings();
     void fetchChiffreAffaires(du, au);
-    // Chargement initial uniquement
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -175,10 +176,10 @@ export function StatistiquesPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <BarChart3 className="w-6 h-6 text-primary" />
+            <BarChart3 className="w-6 h-6 text-primary shrink-0" />
             <span>Statistiques du studio</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -186,16 +187,16 @@ export function StatistiquesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:justify-end sm:shrink-0">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
             <ShieldCheck className="w-3.5 h-3.5" />
-            GESTIONNAIRE
+            Accès gestionnaire
           </span>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="cursor-pointer gap-1.5"
+            className="cursor-pointer gap-1.5 h-9 sm:h-7"
             onClick={() => {
               void fetchRankings();
               void fetchChiffreAffaires(du, au);
@@ -212,23 +213,23 @@ export function StatistiquesPage() {
       <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Euro className="w-5 h-5 text-primary" />
+                <Euro className="w-5 h-5 text-primary shrink-0" />
                 <span>Chiffre d'affaires sur une période</span>
               </CardTitle>
               <CardDescription>
-                Somme des factures au statut <strong>PAYEE</strong> dont la date de paiement est comprise dans la période sélectionnée.
+                Somme des factures payées dont la date de paiement est comprise dans la période sélectionnée.
               </CardDescription>
             </div>
 
             {/* Raccourcis de période */}
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center md:shrink-0">
               <Button
                 type="button"
                 variant="outline"
                 size="xs"
-                className="cursor-pointer"
+                className="cursor-pointer h-9 sm:h-6"
                 onClick={() => applyPresetPeriod(30)}
               >
                 30 jours
@@ -237,7 +238,7 @@ export function StatistiquesPage() {
                 type="button"
                 variant="outline"
                 size="xs"
-                className="cursor-pointer"
+                className="cursor-pointer h-9 sm:h-6"
                 onClick={() => applyPresetPeriod(90)}
               >
                 90 jours
@@ -246,7 +247,7 @@ export function StatistiquesPage() {
                 type="button"
                 variant="outline"
                 size="xs"
-                className="cursor-pointer"
+                className="cursor-pointer h-9 sm:h-6"
                 onClick={() => applyPresetPeriod(180)}
               >
                 6 mois
@@ -255,7 +256,7 @@ export function StatistiquesPage() {
                 type="button"
                 variant="outline"
                 size="xs"
-                className="cursor-pointer"
+                className="cursor-pointer h-9 sm:h-6"
                 onClick={() => applyPresetPeriod("year")}
               >
                 Année en cours
@@ -267,7 +268,7 @@ export function StatistiquesPage() {
         <CardContent className="space-y-5">
           <form
             onSubmit={handleCaSubmit}
-            className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end p-4 rounded-xl bg-muted/40 border border-border"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end p-4 rounded-xl bg-muted/40 border border-border"
           >
             <div className="space-y-1.5">
               <Label htmlFor="stats-du" className="flex items-center gap-1.5 text-xs">
@@ -297,7 +298,7 @@ export function StatistiquesPage() {
               />
             </div>
 
-            <Button type="submit" className="cursor-pointer w-full gap-2" disabled={loadingCa}>
+            <Button type="submit" className="cursor-pointer w-full h-9 gap-2 sm:col-span-2 lg:col-span-1 lg:h-8" disabled={loadingCa}>
               {loadingCa ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -315,12 +316,12 @@ export function StatistiquesPage() {
           <ErrorAlert error={caError} onDismiss={() => setCaError(null)} />
 
           {/* Cartes de résultat HT / TTC */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl border border-border bg-card shadow-xs space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-border bg-card shadow-xs space-y-1 min-w-0">
               <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Chiffre d'affaires (HT)
               </div>
-              <div className="text-2xl font-bold tracking-tight text-foreground">
+              <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums break-words">
                 {loadingCa ? "—" : formatCurrency(montantHt)}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -328,11 +329,11 @@ export function StatistiquesPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-xl border border-primary/25 bg-primary/5 shadow-xs space-y-1">
+            <div className="p-4 rounded-xl border border-primary/25 bg-primary/5 shadow-xs space-y-1 min-w-0">
               <div className="text-xs font-medium uppercase tracking-wider text-primary">
                 Total encaissé (TTC)
               </div>
-              <div className="text-2xl font-bold tracking-tight text-foreground">
+              <div className="text-2xl font-bold tracking-tight text-foreground tabular-nums break-words">
                 {loadingCa ? "—" : formatCurrency(montantTtc)}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -340,11 +341,11 @@ export function StatistiquesPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-1">
+            <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-1 min-w-0 sm:col-span-2 lg:col-span-1">
               <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 TVA collectée
               </div>
-              <div className="text-2xl font-semibold tracking-tight text-muted-foreground">
+              <div className="text-2xl font-semibold tracking-tight text-muted-foreground tabular-nums break-words">
                 {loadingCa ? "—" : formatCurrency(montantTva)}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -363,13 +364,13 @@ export function StatistiquesPage() {
         {/* Classement 1 : Top 5 par nombre de séances TERMINEE */}
         <Card className="flex flex-col">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Camera className="w-4 h-4 text-primary" />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="flex min-w-0 items-center gap-2 text-base">
+                <Camera className="w-4 h-4 text-primary shrink-0" />
                 <span>Top 5 Photographes — Séances réalisées</span>
               </CardTitle>
-              <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                TERMINEE
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                Séances terminées
               </span>
             </div>
             <CardDescription>
@@ -404,8 +405,8 @@ export function StatistiquesPage() {
                             #{idx + 1}
                           </span>
                           <div className="min-w-0">
-                            <div className="font-medium text-sm text-foreground truncate flex items-center gap-1.5">
-                              <span>{item.nom}</span>
+                            <div className="font-medium text-sm text-foreground flex min-w-0 items-center gap-1.5">
+                              <span className="truncate">{item.nom}</span>
                               {idx === 0 && <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                             </div>
                             {item.email && (
@@ -443,13 +444,13 @@ export function StatistiquesPage() {
         {/* Classement 2 : Top 5 par durée cumulée des séances TERMINEE */}
         <Card className="flex flex-col">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="w-4 h-4 text-primary" />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="flex min-w-0 items-center gap-2 text-base">
+                <Clock className="w-4 h-4 text-primary shrink-0" />
                 <span>Top 5 Photographes — Durée cumulée</span>
               </CardTitle>
-              <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                TERMINEE
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                Séances terminées
               </span>
             </div>
             <CardDescription>
@@ -485,8 +486,8 @@ export function StatistiquesPage() {
                             #{idx + 1}
                           </span>
                           <div className="min-w-0">
-                            <div className="font-medium text-sm text-foreground truncate flex items-center gap-1.5">
-                              <span>{item.nom}</span>
+                            <div className="font-medium text-sm text-foreground flex min-w-0 items-center gap-1.5">
+                              <span className="truncate">{item.nom}</span>
                               {idx === 0 && <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                             </div>
                             {item.email && (
