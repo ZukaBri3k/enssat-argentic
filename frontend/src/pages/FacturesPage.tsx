@@ -9,6 +9,7 @@ import {
   type SeanceResponse,
   type StatutPaiement,
 } from "@/lib/api";
+import { PILL_ACTIVE, TONS } from "@/lib/tons";
 import { GenererFactureModal } from "@/components/factures/GenererFactureModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -63,29 +64,23 @@ const STATUT_PAIEMENT_STYLES: Record<StatutPaiement, StatutPaiementStyle> = {
   EN_ATTENTE: {
     label: "En attente",
     description: "Facture émise, règlement en attente",
-    badgeClass:
-      "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800",
-    dotClass: "bg-amber-500",
-    pillActiveClass:
-      "bg-amber-600 text-white border-amber-600 shadow-xs hover:bg-amber-700",
+    badgeClass: TONS.attention.badge,
+    dotClass: TONS.attention.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
   PAYEE: {
     label: "Payée",
     description: "Facture réglée par le client",
-    badgeClass:
-      "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800",
-    dotClass: "bg-emerald-500",
-    pillActiveClass:
-      "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700",
+    badgeClass: TONS.succes.badge,
+    dotClass: TONS.succes.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
   ANNULEE: {
     label: "Annulée",
     description: "Facture annulée définitivement (séance non refacturable)",
-    badgeClass:
-      "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800",
-    dotClass: "bg-rose-500",
-    pillActiveClass:
-      "bg-rose-600 text-white border-rose-600 shadow-xs hover:bg-rose-700",
+    badgeClass: TONS.danger.badge,
+    dotClass: TONS.danger.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
 };
 
@@ -772,8 +767,8 @@ export function FacturesPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
             <FileText className="w-6 h-6 text-primary" />
             <span>Factures</span>
@@ -783,9 +778,9 @@ export function FacturesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {seancesEnAttenteFacturation.length > 0 && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${TONS.attention.badge}`}>
               <Sparkles className="w-3.5 h-3.5" />
               <span>
                 {seancesEnAttenteFacturation.length} séance
@@ -799,7 +794,7 @@ export function FacturesPage() {
             size="sm"
             onClick={triggerRefresh}
             disabled={loadingFactures || loadingSeances}
-            className="cursor-pointer gap-1.5"
+            className="cursor-pointer gap-1.5 w-full sm:w-auto h-9 sm:h-7"
           >
             <RefreshCw
               className={`w-3.5 h-3.5 ${
@@ -813,19 +808,19 @@ export function FacturesPage() {
 
       {/* Section 1 : Séances terminées en attente de facturation */}
       {seancesEnAttenteFacturation.length > 0 && (
-        <Card className="border-amber-500/35 bg-amber-50/35 dark:bg-amber-950/15 shadow-xs">
+        <Card className={`${TONS.attention.surface} shadow-xs`}>
           <CardHeader className="pb-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="space-y-1">
                 <CardTitle className="text-base flex items-center gap-2 text-foreground">
-                  <Receipt className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  <Receipt className={`w-5 h-5 ${TONS.attention.text}`} />
                   <span>Séances terminées en attente de facturation</span>
-                  <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30">
+                  <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold border ${TONS.attention.badge}`}>
                     {seancesEnAttenteFacturation.length}
                   </span>
                 </CardTitle>
                 <CardDescription>
-                  Ces séances au statut <strong>TERMINEE</strong> ne disposent pas encore de facture.
+                  Ces séances sont terminées mais n'ont pas encore de facture.
                   Générez leur facture en saisissant le montant HT et le taux de TVA.
                 </CardDescription>
               </div>
@@ -874,9 +869,6 @@ export function FacturesPage() {
                       </div>
                       <div className="text-sm font-semibold text-foreground truncate">
                         {specialite}
-                        <span className="ml-1.5 text-xs font-mono font-normal text-muted-foreground">
-                          #{seance.id}
-                        </span>
                       </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-1 truncate">
                         <MapPin className="w-3 h-3 shrink-0" />
@@ -909,18 +901,18 @@ export function FacturesPage() {
                       <div className="text-sm font-medium text-foreground truncate">
                         {photographeNom}
                       </div>
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800">
-                        TERMINEE
+                      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${TONS.accent.badge}`}>
+                        Terminée
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end shrink-0">
+                  <div className="flex items-center justify-end lg:shrink-0">
                     <Button
                       type="button"
                       size="sm"
                       onClick={() => setSeanceToInvoice(seance)}
-                      className="cursor-pointer gap-1.5 w-full lg:w-auto"
+                      className="cursor-pointer gap-1.5 w-full lg:w-auto h-9 lg:h-7"
                     >
                       <FilePlus2 className="w-4 h-4" />
                       <span>Générer la facture</span>
@@ -943,7 +935,7 @@ export function FacturesPage() {
       {/* Section 2 : Cartes de synthèse (KPIs) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* KPI Total affiché */}
-        <div className="p-4 rounded-xl border border-primary/25 bg-primary/5 shadow-xs space-y-1.5">
+        <div className={`p-4 rounded-xl border ${TONS.neutre.surface} shadow-xs space-y-1.5`}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-primary">
               Total affiché
@@ -952,9 +944,9 @@ export function FacturesPage() {
               {kpis.totalCount} facture{kpis.totalCount > 1 ? "s" : ""}
             </span>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="text-2xl font-bold tracking-tight text-foreground flex flex-wrap items-baseline gap-x-1">
             {loadingFactures ? "—" : formatCurrency(kpis.totalTtc)}
-            <span className="text-xs font-semibold text-muted-foreground ml-1">TTC</span>
+            <span className="text-xs font-semibold text-muted-foreground">TTC</span>
           </div>
           <div className="text-xs text-muted-foreground flex items-center gap-1.5">
             <Euro className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -965,19 +957,19 @@ export function FacturesPage() {
         </div>
 
         {/* KPI En attente */}
-        <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/15 shadow-xs space-y-1.5">
+        <div className={`p-4 rounded-xl border ${TONS.attention.surface} shadow-xs space-y-1.5`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+            <span className={`text-xs font-semibold uppercase tracking-wider ${TONS.attention.text} flex items-center gap-1.5`}>
               <Clock className="w-3.5 h-3.5" />
               <span>En attente</span>
             </span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${TONS.attention.badge}`}>
               {kpis.enAttenteCount}
             </span>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="text-2xl font-bold tracking-tight text-foreground flex flex-wrap items-baseline gap-x-1">
             {loadingFactures ? "—" : formatCurrency(kpis.enAttenteTtc)}
-            <span className="text-xs font-semibold text-muted-foreground ml-1">TTC</span>
+            <span className="text-xs font-semibold text-muted-foreground">TTC</span>
           </div>
           <div className="text-xs text-muted-foreground">
             Factures en attente de règlement
@@ -985,19 +977,19 @@ export function FacturesPage() {
         </div>
 
         {/* KPI Payées */}
-        <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/40 dark:bg-emerald-950/15 shadow-xs space-y-1.5">
+        <div className={`p-4 rounded-xl border ${TONS.succes.surface} shadow-xs space-y-1.5`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+            <span className={`text-xs font-semibold uppercase tracking-wider ${TONS.succes.text} flex items-center gap-1.5`}>
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Payées</span>
             </span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${TONS.succes.badge}`}>
               {kpis.payeesCount}
             </span>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="text-2xl font-bold tracking-tight text-foreground flex flex-wrap items-baseline gap-x-1">
             {loadingFactures ? "—" : formatCurrency(kpis.payeesTtc)}
-            <span className="text-xs font-semibold text-muted-foreground ml-1">TTC</span>
+            <span className="text-xs font-semibold text-muted-foreground">TTC</span>
           </div>
           <div className="text-xs text-muted-foreground">
             Montant total encaissé
@@ -1005,19 +997,19 @@ export function FacturesPage() {
         </div>
 
         {/* KPI Annulées */}
-        <div className="p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/15 shadow-xs space-y-1.5">
+        <div className={`p-4 rounded-xl border ${TONS.danger.surface} shadow-xs space-y-1.5`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+            <span className={`text-xs font-semibold uppercase tracking-wider ${TONS.danger.text} flex items-center gap-1.5`}>
               <Ban className="w-3.5 h-3.5" />
               <span>Annulées</span>
             </span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${TONS.danger.badge}`}>
               {kpis.annuleesCount}
             </span>
           </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="text-2xl font-bold tracking-tight text-foreground flex flex-wrap items-baseline gap-x-1">
             {loadingFactures ? "—" : formatCurrency(kpis.annuleesTtc)}
-            <span className="text-xs font-semibold text-muted-foreground ml-1">TTC</span>
+            <span className="text-xs font-semibold text-muted-foreground">TTC</span>
           </div>
           <div className="text-xs text-muted-foreground">
             Annulations définitives
@@ -1060,12 +1052,12 @@ export function FacturesPage() {
                 onChange={(e) =>
                   setSelectedStatut(e.target.value as StatutPaiement | "")
                 }
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
               >
                 <option value="">Tous les statuts</option>
                 {ALL_STATUTS_PAIEMENT.map((st) => (
                   <option key={st} value={st}>
-                    {STATUT_PAIEMENT_STYLES[st].label} ({st})
+                    {STATUT_PAIEMENT_STYLES[st].label}
                   </option>
                 ))}
               </select>
@@ -1131,7 +1123,7 @@ export function FacturesPage() {
                     variant={isActive ? "secondary" : "outline"}
                     size="xs"
                     onClick={() => applyPeriodPreset(preset.id)}
-                    className="cursor-pointer"
+                    className="cursor-pointer h-9 sm:h-6 px-3 sm:px-2"
                   >
                     {preset.label}
                   </Button>
@@ -1146,7 +1138,7 @@ export function FacturesPage() {
                   variant="ghost"
                   size="xs"
                   onClick={resetFilters}
-                  className="cursor-pointer gap-1 text-muted-foreground hover:text-foreground"
+                  className="cursor-pointer gap-1 h-9 sm:h-6 px-3 sm:px-2 text-muted-foreground hover:text-foreground"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>Réinitialiser les filtres</span>
@@ -1158,7 +1150,7 @@ export function FacturesPage() {
                 size="xs"
                 onClick={triggerRefresh}
                 disabled={loadingFactures}
-                className="cursor-pointer gap-1"
+                className="cursor-pointer gap-1 h-9 sm:h-6 px-3 sm:px-2"
               >
                 <RefreshCw
                   className={`w-3 h-3 ${loadingFactures ? "animate-spin" : ""}`}
@@ -1177,14 +1169,14 @@ export function FacturesPage() {
             <button
               type="button"
               onClick={() => setSelectedStatut("")}
-              className={`cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+              className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium border transition-all ${
                 selectedStatut === ""
                   ? "bg-foreground text-background border-foreground shadow-xs"
                   : "bg-muted/60 text-muted-foreground border-border hover:text-foreground"
               }`}
             >
               <span>Tous</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-background/20 font-mono">
+              <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-background/20 font-mono">
                 {countsByStatut.ALL}
               </span>
             </button>
@@ -1200,13 +1192,13 @@ export function FacturesPage() {
                     setSelectedStatut((prev) => (prev === st ? "" : st))
                   }
                   title={style.description}
-                  className={`cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                  className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 sm:px-2.5 sm:py-1 rounded-full text-xs font-medium border transition-all ${
                     isSelected ? style.pillActiveClass : style.badgeClass
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      isSelected ? "bg-white" : style.dotClass
+                      isSelected ? "bg-primary-foreground" : style.dotClass
                     }`}
                   />
                   <span>{style.label}</span>
@@ -1282,8 +1274,8 @@ export function FacturesPage() {
                   <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     <th className="py-3 px-4">Numéro & Émission</th>
                     <th className="py-3 px-4">Client (copie figée)</th>
-                    <th className="py-3 px-4">Prestation & Photographe</th>
-                    <th className="py-3 px-4 text-right">Montant HT & TVA</th>
+                    <th className="py-3 px-4 hidden md:table-cell">Prestation & Photographe</th>
+                    <th className="py-3 px-4 text-right hidden lg:table-cell">Montant HT & TVA</th>
                     <th className="py-3 px-4 text-right">Montant TTC</th>
                     <th className="py-3 px-4">Statut de paiement</th>
                     <th className="py-3 px-4 text-right">Action</th>
@@ -1325,7 +1317,7 @@ export function FacturesPage() {
                         </td>
 
                         {/* Client (copie figée) */}
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 min-w-40">
                           <div className="font-medium text-foreground">
                             {clientIdentite}
                           </div>
@@ -1340,7 +1332,7 @@ export function FacturesPage() {
                         </td>
 
                         {/* Prestation & Photographe (copie figée) */}
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 hidden md:table-cell">
                           <div className="font-medium text-foreground flex items-center gap-1.5">
                             <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
                             <span>{prestationType}</span>
@@ -1358,7 +1350,7 @@ export function FacturesPage() {
                         </td>
 
                         {/* Montant HT & TVA */}
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <td className="py-3 px-4 text-right whitespace-nowrap hidden lg:table-cell">
                           <div className="font-medium text-foreground">
                             {formatCurrency(ht)} HT
                           </div>
@@ -1404,7 +1396,7 @@ export function FacturesPage() {
                             variant="outline"
                             size="xs"
                             onClick={() => void handleOpenDetail(facture)}
-                            className="cursor-pointer gap-1"
+                            className="cursor-pointer gap-1 h-9 sm:h-6 px-3 sm:px-2"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>Détails</span>
@@ -1433,19 +1425,19 @@ export function FacturesPage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="facture-detail-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 backdrop-blur-xs p-4"
           onClick={() => {
             if (!actionEnCours) handleCloseDetail();
           }}
         >
           <div
-            className="w-full max-w-2xl text-left my-8"
+            className="my-auto w-full max-w-2xl text-left"
             onClick={(e) => e.stopPropagation()}
           >
             <Card className="shadow-2xl border-border">
               <CardHeader className="border-b border-border pb-4">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0">
                     <div className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1.5">
                       <Camera className="w-3.5 h-3.5" />
                       <span>Studio Argentic</span>
@@ -1453,9 +1445,9 @@ export function FacturesPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <CardTitle
                         id="facture-detail-title"
-                        className="text-xl font-mono"
+                        className="text-xl font-mono break-all"
                       >
-                        {factureDetail?.numero ?? `Facture #${selectedFactureId}`}
+                        {factureDetail?.numero ?? "Facture"}
                       </CardTitle>
                       {factureDetail && (
                         <span
@@ -1478,15 +1470,14 @@ export function FacturesPage() {
                       )}
                     </div>
                     <CardDescription>
-                      Fiche complète de la facture récupérée depuis{" "}
-                      <code className="text-xs">GET /factures/{selectedFactureId}</code>
+                      Détail de la facture : client, prestation, montants et règlement.
                     </CardDescription>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleCloseDetail}
-                    className="cursor-pointer p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                    className="cursor-pointer shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
                     aria-label="Fermer le détail de la facture"
                   >
                     <X className="w-5 h-5" />
@@ -1510,7 +1501,6 @@ export function FacturesPage() {
                 {factureDetail &&
                   (() => {
                     const statut = extractStatutPaiement(factureDetail);
-                    const seanceId = extractFactureSeanceId(factureDetail);
                     const clientIdentite = extractClientIdentite(factureDetail);
                     const clientAdresse = extractClientAdresse(factureDetail);
                     const clientEmail = extractClientEmail(factureDetail);
@@ -1561,9 +1551,9 @@ export function FacturesPage() {
                             <div className="text-sm font-mono font-semibold text-foreground">
                               {factureDetail.numero}
                             </div>
-                            {seanceId !== undefined && (
+                            {prestationDate && (
                               <div className="text-[11px] text-muted-foreground">
-                                Séance associée #{seanceId}
+                                Séance du {formatDateShortFr(prestationDate)}
                               </div>
                             )}
                           </div>
@@ -1573,7 +1563,7 @@ export function FacturesPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {/* Coordonnées du client (copie figée) */}
                           <div className="p-4 rounded-xl border border-border bg-card space-y-2.5">
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                                 <User className="w-3.5 h-3.5 text-primary" />
                                 <span>Coordonnées du client</span>
@@ -1584,31 +1574,31 @@ export function FacturesPage() {
                               </span>
                             </div>
 
-                            <div className="text-sm font-bold text-foreground">
+                            <div className="text-sm font-bold text-foreground break-words">
                               {clientIdentite}
                             </div>
 
                             <div className="text-xs text-muted-foreground flex items-start gap-1.5">
                               <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                              <span>{clientAdresse}</span>
+                              <span className="min-w-0 break-words">{clientAdresse}</span>
                             </div>
 
                             <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                               <Mail className="w-3.5 h-3.5 shrink-0" />
-                              <span>{clientEmail}</span>
+                              <span className="min-w-0 break-all">{clientEmail}</span>
                             </div>
 
                             {clientSiren && (
                               <div className="text-xs font-mono text-muted-foreground flex items-center gap-1.5 pt-0.5">
                                 <Building2 className="w-3.5 h-3.5 shrink-0" />
-                                <span>SIREN / TVA : {clientSiren}</span>
+                                <span className="min-w-0 break-words">SIREN / TVA : {clientSiren}</span>
                               </div>
                             )}
                           </div>
 
                           {/* Prestation facturée (copie figée) */}
                           <div className="p-4 rounded-xl border border-border bg-card space-y-2.5">
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                                 <Tag className="w-3.5 h-3.5 text-primary" />
                                 <span>Prestation facturée</span>
@@ -1619,7 +1609,7 @@ export function FacturesPage() {
                               </span>
                             </div>
 
-                            <div className="text-sm font-bold text-foreground">
+                            <div className="text-sm font-bold text-foreground break-words">
                               {prestationType}
                             </div>
 
@@ -1630,7 +1620,7 @@ export function FacturesPage() {
 
                             <div className="text-xs font-mono text-muted-foreground flex items-center gap-1.5">
                               <Clock className="w-3.5 h-3.5 shrink-0" />
-                              <span>
+                              <span className="min-w-0">
                                 Début à {prestationHeure}
                                 {prestationDuree > 0 &&
                                   ` • Durée ${formatDuration(prestationDuree)}`}
@@ -1639,7 +1629,7 @@ export function FacturesPage() {
 
                             <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                               <Camera className="w-3.5 h-3.5 shrink-0" />
-                              <span>Photographe : <strong className="text-foreground">{photographeNom}</strong></span>
+                              <span className="min-w-0 break-words">Photographe : <strong className="text-foreground">{photographeNom}</strong></span>
                             </div>
                           </div>
                         </div>
@@ -1652,14 +1642,14 @@ export function FacturesPage() {
                           </div>
 
                           <div className="space-y-2 text-sm">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-2">
                               <span className="text-muted-foreground">Montant HT</span>
                               <span className="font-semibold text-foreground">
                                 {formatCurrency(ht)}
                               </span>
                             </div>
 
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-2">
                               <span className="text-muted-foreground">
                                 TVA ({formatPercent(tauxTva)})
                               </span>
@@ -1668,7 +1658,7 @@ export function FacturesPage() {
                               </span>
                             </div>
 
-                            <div className="pt-2 border-t border-primary/20 flex items-center justify-between">
+                            <div className="pt-2 border-t border-primary/20 flex items-center justify-between gap-2">
                               <span className="text-base font-bold text-foreground">
                                 Montant TTC
                               </span>
@@ -1693,7 +1683,7 @@ export function FacturesPage() {
                             />
 
                             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                              <div className="space-y-1.5 flex-1">
+                              <div className="space-y-1.5 flex-1 min-w-0">
                                 <Label htmlFor="facture-date-paiement" className="text-xs">
                                   Date de paiement
                                 </Label>
@@ -1711,7 +1701,7 @@ export function FacturesPage() {
                                 type="button"
                                 onClick={() => void handleEnregistrerPaiement()}
                                 disabled={actionEnCours || !datePaiementSaisie}
-                                className="cursor-pointer flex items-center gap-1.5"
+                                className="cursor-pointer flex items-center gap-1.5 h-9 w-full sm:w-auto"
                               >
                                 {isPaying ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1722,8 +1712,8 @@ export function FacturesPage() {
                               </Button>
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border">
-                              <span className="text-xs text-muted-foreground">
+                            <div className="flex flex-col gap-2 pt-3 border-t border-border sm:flex-row sm:items-center sm:justify-between">
+                              <span className="text-xs text-muted-foreground min-w-0">
                                 L'annulation est définitive : la séance ne pourra pas être refacturée.
                               </span>
                               <Button
@@ -1731,7 +1721,7 @@ export function FacturesPage() {
                                 variant="destructive"
                                 onClick={() => setConfirmAnnulationOpen(true)}
                                 disabled={actionEnCours}
-                                className="cursor-pointer flex items-center gap-1.5"
+                                className="cursor-pointer flex items-center gap-1.5 h-9 w-full sm:w-auto"
                               >
                                 <Ban className="w-4 h-4" />
                                 <span>Annuler la facture</span>
@@ -1743,9 +1733,9 @@ export function FacturesPage() {
                     );
                   })()}
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
+                <div className="flex flex-col gap-2 pt-2 border-t border-border sm:flex-row sm:items-center sm:justify-between">
                   <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Lock className="w-3.5 h-3.5" />
+                    <Lock className="w-3.5 h-3.5 shrink-0" />
                     <span>Coordonnées client et prestation figées à l'émission</span>
                   </span>
 
@@ -1753,7 +1743,7 @@ export function FacturesPage() {
                     type="button"
                     variant="outline"
                     onClick={handleCloseDetail}
-                    className="cursor-pointer"
+                    className="cursor-pointer h-9 w-full sm:w-auto"
                   >
                     Fermer
                   </Button>

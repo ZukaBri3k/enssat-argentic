@@ -5,6 +5,7 @@ import {
   type FactureResponse,
   type SeanceResponse,
 } from "@/lib/api";
+import { TONS } from "@/lib/tons";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { useToast } from "@/components/shared/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -253,7 +254,7 @@ function GenererFactureModalContent({
           : "";
       success(
         "Facture générée",
-        `La facture ${created.numero}${ttcLabel} a été émise pour la séance #${seance.id}.`
+        `La facture ${created.numero}${ttcLabel} a été émise pour la séance du ${formatSeanceDate(seance)} (${extractClientNom(seance)}).`
       );
       onSuccess(created, seance.id);
     } catch (err) {
@@ -269,25 +270,25 @@ function GenererFactureModalContent({
       role="dialog"
       aria-modal="true"
       aria-labelledby="generer-facture-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 backdrop-blur-xs p-4"
       onClick={() => {
         if (!isSubmitting) onClose();
       }}
     >
       <div
-        className="w-full max-w-2xl text-left my-8"
+        className="my-auto w-full max-w-2xl text-left"
         onClick={(e) => e.stopPropagation()}
       >
         <Card className="shadow-2xl border-border">
           <CardHeader className="border-b border-border pb-4">
             <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <CardTitle
                   id="generer-facture-modal-title"
                   className="text-lg flex items-center gap-2"
                 >
-                  <Receipt className="w-5 h-5 text-primary" />
-                  <span>Générer la facture — Séance #{seance.id}</span>
+                  <Receipt className="w-5 h-5 text-primary shrink-0" />
+                  <span>Générer la facture</span>
                 </CardTitle>
                 <CardDescription>
                   Saisissez le montant HT et vérifiez le taux de TVA. Les
@@ -300,7 +301,7 @@ function GenererFactureModalContent({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="cursor-pointer p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+                className="cursor-pointer shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
                 aria-label="Fermer la modale de facturation"
               >
                 <X className="w-5 h-5" />
@@ -322,52 +323,49 @@ function GenererFactureModalContent({
               <div className="p-4 rounded-xl border border-border bg-muted/40 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-primary" />
+                    <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
                     <span>Prestation & client figés dans la facture</span>
-                  </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-secondary text-secondary-foreground border border-border">
-                    Séance #{seance.id}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <Tag className="w-3.5 h-3.5 shrink-0" />
                       <span>Spécialité :</span>
-                      <span className="font-semibold text-foreground">
+                      <span className="min-w-0 break-words font-semibold text-foreground">
                         {extractSpecialite(seance)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <Calendar className="w-3.5 h-3.5 shrink-0" />
                       <span>Date :</span>
-                      <span className="font-medium text-foreground capitalize">
+                      <span className="min-w-0 break-words font-medium text-foreground capitalize">
                         {formatSeanceDate(seance)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <Clock className="w-3.5 h-3.5 shrink-0" />
                       <span>Heure & durée :</span>
-                      <span className="font-medium text-foreground">
+                      <span className="min-w-0 break-words font-medium text-foreground">
                         {formatSeanceHeure(seance)} · {formatSeanceDuree(seance)}
                       </span>
                     </div>
                     <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
                       <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       <span>Lieu :</span>
-                      <span className="font-medium text-foreground">
+                      <span className="min-w-0 break-words font-medium text-foreground">
                         {seance.lieu || "Non renseigné"}
                       </span>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0">
                     <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
                       <User className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       <div className="min-w-0">
                         <span>Client : </span>
-                        <span className="font-semibold text-foreground">
+                        <span className="min-w-0 break-words font-semibold text-foreground">
                           {extractClientNom(seance)}
                         </span>
                         {clientEmail && (
@@ -377,10 +375,10 @@ function GenererFactureModalContent({
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       <Camera className="w-3.5 h-3.5 shrink-0" />
                       <span>Photographe :</span>
-                      <span className="font-semibold text-foreground">
+                      <span className="min-w-0 break-words font-semibold text-foreground">
                         {extractPhotographeNom(seance)}
                       </span>
                     </div>
@@ -435,7 +433,7 @@ function GenererFactureModalContent({
                               montantHt: false,
                             }));
                           }}
-                          className={`cursor-pointer px-2 py-0.5 rounded-md text-xs font-medium border transition-colors disabled:opacity-50 ${
+                          className={`cursor-pointer h-9 sm:h-auto px-3 sm:px-2 py-0.5 rounded-md text-xs font-medium border transition-colors disabled:opacity-50 ${
                             isSelected
                               ? "bg-primary text-primary-foreground border-primary"
                               : "bg-background text-muted-foreground border-border hover:text-foreground"
@@ -493,7 +491,7 @@ function GenererFactureModalContent({
                               tauxTva: false,
                             }));
                           }}
-                          className={`cursor-pointer px-2 py-0.5 rounded-md text-xs font-medium border transition-colors disabled:opacity-50 ${
+                          className={`cursor-pointer h-9 sm:h-auto px-3 sm:px-2 py-0.5 rounded-md text-xs font-medium border transition-colors disabled:opacity-50 ${
                             isSelected
                               ? "bg-primary text-primary-foreground border-primary"
                               : "bg-background text-muted-foreground border-border hover:text-foreground"
@@ -505,7 +503,7 @@ function GenererFactureModalContent({
                     })}
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-snug">
-                    Défaut backend : <strong>20,00 %</strong> si laissé vide.
+                    <strong>20 %</strong> par défaut si laissé vide.
                   </p>
                 </div>
               </div>
@@ -524,8 +522,8 @@ function GenererFactureModalContent({
                         {todayFormatted}
                       </strong>
                     </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
-                      EN_ATTENTE
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${TONS.attention.badge}`}>
+                      En attente
                     </span>
                   </div>
                 </div>
@@ -549,7 +547,7 @@ function GenererFactureModalContent({
                             maximumFractionDigits: 2,
                           })} %`
                         : "—"}
-                      {isTvaEmpty ? ", défaut" : ""})
+                      {isTvaEmpty ? ", par défaut" : ""})
                     </div>
                     <div className="text-sm font-semibold text-foreground tabular-nums">
                       {previewTvaAmount !== null
@@ -569,20 +567,20 @@ function GenererFactureModalContent({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <div className="flex flex-col-reverse gap-2 pt-3 border-t border-border sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={onClose}
                   disabled={isSubmitting}
-                  className="cursor-pointer"
+                  className="cursor-pointer h-9 w-full sm:w-auto"
                 >
                   Annuler
                 </Button>
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="cursor-pointer gap-1.5"
+                  className="cursor-pointer gap-1.5 h-9 w-full sm:w-auto"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

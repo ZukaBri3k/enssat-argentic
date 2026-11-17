@@ -1,7 +1,7 @@
 import React from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Navigate, Link } from "@/lib/router";
-import type { Role } from "@/lib/api";
+import { ROLE_LABELS, type Role } from "@/lib/api";
 import { Loader2, ShieldAlert, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -37,18 +37,20 @@ export function ProtectedRoute({ requiredRole, children }: ProtectedRouteProps) 
 
   if (!hasRequiredRole(user.role, requiredRole)) {
     return (
-      <div className="max-w-md mx-auto my-12 text-left">
+      <div className="max-w-md mx-auto my-6 sm:my-12 text-left">
         <Card className="border-destructive/30">
           <CardHeader className="space-y-2">
             <div className="w-10 h-10 rounded-xl bg-destructive/15 text-destructive flex items-center justify-center">
               <ShieldAlert className="w-5 h-5" />
             </div>
-            <CardTitle className="text-lg">Accès refusé (403)</CardTitle>
+            <CardTitle className="text-lg">Accès refusé</CardTitle>
             <CardDescription>
               Cette rubrique nécessite le rôle{" "}
-              <span className="font-semibold text-foreground">{requiredRole}</span>. Votre compte
+              <span className="font-semibold text-foreground">
+                {requiredRole && ROLE_LABELS[requiredRole]}
+              </span>. Votre compte
               actuel dispose du rôle{" "}
-              <span className="font-semibold text-foreground">{user.role}</span>.
+              <span className="font-semibold text-foreground">{ROLE_LABELS[user.role]}</span>.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">

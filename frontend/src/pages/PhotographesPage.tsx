@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   apiActiverPhotographe,
   apiDeletePhotographe,
@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { TONS } from "@/lib/tons";
 import {
   Loader2,
   Mail,
@@ -50,11 +51,11 @@ const FILTRES: { value: FiltreActif; label: string; actif?: boolean }[] = [
 
 function StatutBadge({ actif }: { actif: boolean }) {
   return actif ? (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TONS.succes.badge}`}>
       Actif
     </span>
   ) : (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TONS.neutre.badge}`}>
       Inactif
     </span>
   );
@@ -94,7 +95,7 @@ function SeancesAAnnulerListe({ seances }: { seances: SeanceAVenir[] }) {
               {FORMAT_JOUR.format(debut)}, {FORMAT_HEURE.format(debut)} –{" "}
               {FORMAT_HEURE.format(new Date(seance.fin))}
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground break-words">
               {seance.specialite.libelle} · {seance.clientIdentite} · {seance.lieu}
             </div>
           </li>
@@ -227,37 +228,48 @@ function PhotographeDetail({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-2">
-        <div className="space-y-1">
-          <CardTitle className="text-base">
-            {photographe ? photographe.nom : "Détail du photographe"}
-          </CardTitle>
-          {photographe && (
-            <CardDescription className="flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5" />
-              <span>{photographe.email}</span>
-            </CardDescription>
-          )}
+      <CardHeader className="flex flex-col gap-3">
+        <div className="flex w-full items-start justify-between gap-2">
+          <div className="space-y-1 min-w-0">
+            <CardTitle className="text-base break-words">
+              {photographe ? photographe.nom : "Détail du photographe"}
+            </CardTitle>
+            {photographe && (
+              <CardDescription className="flex items-center gap-1.5 min-w-0">
+                <Mail className="w-3.5 h-3.5 shrink-0" />
+                <span className="min-w-0 break-all">{photographe.email}</span>
+              </CardDescription>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="cursor-pointer size-9 sm:size-7 shrink-0"
+            onClick={onClose}
+            aria-label="Fermer le détail"
+            title="Fermer"
+          >
+            <X />
+          </Button>
         </div>
-        <div className="flex items-center gap-1">
-          {photographe && (
+        {photographe && (
+          <div className="flex w-full flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="cursor-pointer flex items-center gap-1.5"
+              className="cursor-pointer flex flex-1 items-center gap-1.5 h-9 sm:flex-none sm:h-7"
               onClick={() => onEdit(photographe)}
             >
               <Pencil className="w-3.5 h-3.5" />
               Modifier
             </Button>
-          )}
-          {photographe && (
             <Button
               type="button"
               variant="destructive"
               size="sm"
-              className="cursor-pointer flex items-center gap-1.5"
+              className="cursor-pointer flex flex-1 items-center gap-1.5 h-9 sm:flex-none sm:h-7"
               onClick={() => {
                 setDeleteError(null);
                 setConfirmDelete(true);
@@ -266,18 +278,8 @@ function PhotographeDetail({
               <Trash2 className="w-3.5 h-3.5" />
               Supprimer
             </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="cursor-pointer"
-            onClick={onClose}
-            aria-label="Fermer le détail"
-          >
-            <X />
-          </Button>
-        </div>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <ErrorAlert
@@ -302,13 +304,13 @@ function PhotographeDetail({
             <>
               <div className="space-y-1.5">
                 <div className="text-xs font-medium text-muted-foreground">Statut</div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <StatutBadge actif={photographe.actif} />
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="cursor-pointer flex items-center gap-1.5"
+                    className="cursor-pointer flex items-center gap-1.5 h-9 sm:h-7"
                     disabled={changingStatut}
                     onClick={photographe.actif ? handleDesactiver : handleActiver}
                   >
@@ -375,6 +377,7 @@ export function PhotographesPage() {
   const [panneau, setPanneau] = useState<Panneau | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const { success } = useToast();
+  const panneauRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -399,6 +402,13 @@ export function PhotographesPage() {
       mounted = false;
     };
   }, [filtre, reloadKey]);
+
+  // Sur mobile/tablette le panneau est empilé avec la liste : on le ramène à l'écran à l'ouverture
+  useEffect(() => {
+    if (panneau && window.matchMedia("(max-width: 1023.98px)").matches) {
+      panneauRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [panneau]);
 
   const selectedId = panneau?.mode === "detail" ? panneau.id : null;
 
@@ -429,10 +439,10 @@ export function PhotographesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <UserSquare2 className="w-6 h-6 text-primary" />
+            <UserSquare2 className="w-6 h-6 text-primary shrink-0" />
             <span>Photographes</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -440,15 +450,15 @@ export function PhotographesPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1" role="group" aria-label="Filtrer par statut">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3 sm:shrink-0">
+          <div className="grid grid-cols-3 gap-1 sm:flex sm:items-center" role="group" aria-label="Filtrer par statut">
             {FILTRES.map(({ value, label }) => (
               <Button
                 key={value}
                 type="button"
                 size="sm"
                 variant={filtre === value ? "default" : "outline"}
-                className="cursor-pointer"
+                className="cursor-pointer h-9 sm:h-7"
                 aria-pressed={filtre === value}
                 onClick={() => {
                   setFiltre(value);
@@ -463,7 +473,7 @@ export function PhotographesPage() {
           <Button
             type="button"
             size="sm"
-            className="cursor-pointer flex items-center gap-1.5"
+            className="cursor-pointer flex items-center gap-1.5 w-full h-9 sm:w-auto sm:h-7"
             onClick={() => setPanneau({ mode: "creation" })}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -475,7 +485,7 @@ export function PhotographesPage() {
       <ErrorAlert error={loadError} />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className={panneau !== null ? "lg:col-span-2" : "lg:col-span-3"}>
+        <Card className={`min-w-0 ${panneau !== null ? "lg:col-span-2" : "lg:col-span-3"}`}>
           <CardContent className="overflow-x-auto">
             {loading ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -489,8 +499,8 @@ export function PhotographesPage() {
                 <thead>
                   <tr className="border-b border-border text-left text-xs text-muted-foreground">
                     <th className="py-2 pr-4 font-medium">Nom</th>
-                    <th className="py-2 pr-4 font-medium">Email</th>
-                    <th className="py-2 pr-4 font-medium">Spécialités</th>
+                    <th className="hidden py-2 pr-4 font-medium md:table-cell">Email</th>
+                    <th className="hidden py-2 pr-4 font-medium sm:table-cell">Spécialités</th>
                     <th className="py-2 font-medium">Statut</th>
                   </tr>
                 </thead>
@@ -502,17 +512,22 @@ export function PhotographesPage() {
                         selectedId === p.id ? "bg-muted" : ""
                       }`}
                     >
-                      <td className="py-2.5 pr-4 font-medium">
+                      <td className="py-1.5 pr-4 font-medium">
                         <button
                           type="button"
-                          className="cursor-pointer text-left hover:underline"
+                          className="cursor-pointer min-h-9 text-left hover:underline"
                           onClick={() => setPanneau({ mode: "detail", id: p.id })}
                         >
                           {p.nom}
                         </button>
+                        <div className="text-xs font-normal text-muted-foreground break-all md:hidden">
+                          {p.email}
+                        </div>
                       </td>
-                      <td className="py-2.5 pr-4 text-muted-foreground">{p.email}</td>
-                      <td className="py-2.5 pr-4">
+                      <td className="hidden py-2.5 pr-4 text-muted-foreground break-all md:table-cell">
+                        {p.email}
+                      </td>
+                      <td className="hidden py-2.5 pr-4 sm:table-cell">
                         <SpecialitesBadges specialites={p.specialites} />
                       </td>
                       <td className="py-2.5">
@@ -526,29 +541,33 @@ export function PhotographesPage() {
           </CardContent>
         </Card>
 
-        {panneau?.mode === "detail" && (
-          <PhotographeDetail
-            id={panneau.id}
-            onEdit={(photographe) => setPanneau({ mode: "edition", photographe })}
-            onDeleted={handleDeleted}
-            onStatutChanged={handleStatutChanged}
-            onClose={() => setPanneau(null)}
-          />
-        )}
-        {panneau?.mode === "creation" && (
-          <PhotographeForm
-            key="creation"
-            onSaved={(saved) => handleSaved(saved, true)}
-            onCancel={() => setPanneau(null)}
-          />
-        )}
-        {panneau?.mode === "edition" && (
-          <PhotographeForm
-            key={`edition-${panneau.photographe.id}`}
-            photographe={panneau.photographe}
-            onSaved={(saved) => handleSaved(saved, false)}
-            onCancel={() => setPanneau({ mode: "detail", id: panneau.photographe.id })}
-          />
+        {panneau !== null && (
+          <div ref={panneauRef} className="order-first min-w-0 scroll-mt-20 lg:order-none">
+            {panneau.mode === "detail" && (
+              <PhotographeDetail
+                id={panneau.id}
+                onEdit={(photographe) => setPanneau({ mode: "edition", photographe })}
+                onDeleted={handleDeleted}
+                onStatutChanged={handleStatutChanged}
+                onClose={() => setPanneau(null)}
+              />
+            )}
+            {panneau.mode === "creation" && (
+              <PhotographeForm
+                key="creation"
+                onSaved={(saved) => handleSaved(saved, true)}
+                onCancel={() => setPanneau(null)}
+              />
+            )}
+            {panneau.mode === "edition" && (
+              <PhotographeForm
+                key={`edition-${panneau.photographe.id}`}
+                photographe={panneau.photographe}
+                onSaved={(saved) => handleSaved(saved, false)}
+                onCancel={() => setPanneau({ mode: "detail", id: panneau.photographe.id })}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
