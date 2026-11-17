@@ -134,7 +134,7 @@ class ClientServiceTest {
 
         assertThatThrownBy(() -> clientService.addClient(req))
                 .isInstanceOf(DonneeInvalideException.class)
-                .hasMessageContaining("raisonSociale");
+                .hasMessageContaining("raison sociale");
     }
 
     @Test
