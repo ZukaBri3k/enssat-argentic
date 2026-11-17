@@ -1,5 +1,6 @@
 import { AlertCircle, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { FieldErrorList } from "@/components/shared/FieldErrorList";
 
 interface ErrorAlertProps {
   error: unknown;
@@ -11,12 +12,12 @@ export function ErrorAlert({ error, title, onDismiss }: ErrorAlertProps) {
   if (!error) return null;
 
   let displayTitle = title;
-  let detailMessage = "";
+  let detailMessage: string;
   let fieldErrors: Record<string, string> | undefined;
 
   if (error instanceof ApiError) {
-    displayTitle = displayTitle || error.problem?.title || `Erreur (${error.status})`;
-    detailMessage = error.problem?.detail || error.message;
+    displayTitle = displayTitle || error.title;
+    detailMessage = error.message;
     fieldErrors = error.fieldErrors;
   } else if (error instanceof Error) {
     detailMessage = error.message;
@@ -32,24 +33,22 @@ export function ErrorAlert({ error, title, onDismiss }: ErrorAlertProps) {
       className="flex items-start gap-2.5 p-3.5 rounded-xl bg-destructive/10 border border-destructive/25 text-destructive text-sm text-left"
     >
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-      <div className="space-y-1 flex-1">
+      <div className="space-y-1 flex-1 min-w-0 break-words">
         {displayTitle && <div className="font-semibold leading-tight">{displayTitle}</div>}
         {detailMessage && <div className="leading-snug">{detailMessage}</div>}
-        {fieldErrors && Object.keys(fieldErrors).length > 0 && (
-          <ul className="list-disc list-inside text-xs space-y-0.5 pt-1">
-            {Object.entries(fieldErrors).map(([field, msg]) => (
-              <li key={field}>
-                <span className="font-semibold">{field}</span> : {msg}
-              </li>
-            ))}
-          </ul>
+        {fieldErrors && (
+          <FieldErrorList
+            fieldErrors={fieldErrors}
+            excluding={detailMessage}
+            className="list-disc list-inside text-xs space-y-0.5 pt-1"
+          />
         )}
       </div>
       {onDismiss && (
         <button
           type="button"
           onClick={onDismiss}
-          className="text-destructive/70 hover:text-destructive cursor-pointer shrink-0 p-0.5"
+          className="text-destructive/70 hover:text-destructive cursor-pointer shrink-0 -m-1.5 p-1.5"
           aria-label="Fermer l'alerte"
         >
           <X className="w-4 h-4" />
