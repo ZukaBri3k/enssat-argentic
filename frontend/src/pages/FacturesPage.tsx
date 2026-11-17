@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  apiAnnulerFacture,
+  apiEnregistrerPaiementFacture,
   apiGetFactureById,
   apiGetFactures,
   apiGetSeances,
@@ -8,6 +10,7 @@ import {
   type StatutPaiement,
 } from "@/lib/api";
 import { GenererFactureModal } from "@/components/factures/GenererFactureModal";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { useToast } from "@/components/shared/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -343,7 +346,7 @@ function getPresetRange(preset: PeriodPreset): { du: string; au: string } {
 }
 
 export function FacturesPage() {
-  const { showApiError } = useToast();
+  const { showApiError, success } = useToast();
 
   // Filtres (GET /factures)
   const [selectedStatut, setSelectedStatut] = useState<StatutPaiement | "">("");
@@ -373,6 +376,16 @@ export function FacturesPage() {
   const [loadingDetail, setLoadingDetail] = useState<boolean>(false);
   const [detailError, setDetailError] = useState<unknown>(null);
   const activeDetailIdRef = useRef<number | null>(null);
+
+  // Actions sur la facture (POST /factures/{id}/paiement et /annulation)
+  const [datePaiementSaisie, setDatePaiementSaisie] = useState<string>(() =>
+    toDateInputString(new Date())
+  );
+  const [isPaying, setIsPaying] = useState<boolean>(false);
+  const [confirmAnnulationOpen, setConfirmAnnulationOpen] = useState<boolean>(false);
+  const [isCancelling, setIsCancelling] = useState<boolean>(false);
+  const [actionError, setActionError] = useState<unknown>(null);
+  const actionEnCours = isPaying || isCancelling;
 
   // Compteur de rafraîchissement manuel
   const [refreshTick, setRefreshTick] = useState<number>(0);
@@ -642,6 +655,8 @@ export function FacturesPage() {
       setFactureDetail(facturePreview);
       setLoadingDetail(true);
       setDetailError(null);
+      setActionError(null);
+      setDatePaiementSaisie(toDateInputString(new Date()));
 
       try {
         const fullDetail = await apiGetFactureById(facturePreview.id);
@@ -671,18 +686,70 @@ export function FacturesPage() {
     setFactureDetail(null);
     setDetailError(null);
     setLoadingDetail(false);
+    setActionError(null);
+    setConfirmAnnulationOpen(false);
   }, []);
 
   useEffect(() => {
     if (selectedFactureId === null) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      // Échap ferme d'abord la confirmation d'annulation, pas le détail
+      if (e.key === "Escape" && !confirmAnnulationOpen && !actionEnCours) {
         handleCloseDetail();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedFactureId, handleCloseDetail]);
+  }, [selectedFactureId, handleCloseDetail, confirmAnnulationOpen, actionEnCours]);
+
+  // Remplace la facture modifiée dans le détail et les listes, puis resynchronise avec le serveur
+  const applyFactureUpdate = useCallback(
+    (updated: FactureResponse) => {
+      if (activeDetailIdRef.current === updated.id) {
+        setFactureDetail(updated);
+      }
+      setFactures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      setAllFactures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      triggerRefresh();
+    },
+    [triggerRefresh]
+  );
+
+  const handleEnregistrerPaiement = useCallback(async () => {
+    if (!factureDetail) return;
+    setIsPaying(true);
+    setActionError(null);
+    try {
+      const updated = await apiEnregistrerPaiementFacture(factureDetail.id, datePaiementSaisie);
+      applyFactureUpdate(updated);
+      success(
+        "Paiement enregistré",
+        `La facture ${updated.numero} est payée au ${formatDateShortFr(updated.datePaiement)}.`
+      );
+    } catch (err) {
+      setActionError(err);
+      showApiError(err, `Impossible d'enregistrer le paiement de la facture ${factureDetail.numero}`);
+    } finally {
+      setIsPaying(false);
+    }
+  }, [factureDetail, datePaiementSaisie, applyFactureUpdate, success, showApiError]);
+
+  const handleConfirmAnnulation = useCallback(async () => {
+    if (!factureDetail) return;
+    setIsCancelling(true);
+    setActionError(null);
+    try {
+      const updated = await apiAnnulerFacture(factureDetail.id);
+      applyFactureUpdate(updated);
+      success("Facture annulée", `La facture ${updated.numero} a été annulée définitivement.`);
+    } catch (err) {
+      setActionError(err);
+      showApiError(err, `Impossible d'annuler la facture ${factureDetail.numero}`);
+    } finally {
+      setIsCancelling(false);
+      setConfirmAnnulationOpen(false);
+    }
+  }, [factureDetail, applyFactureUpdate, success, showApiError]);
 
   const applyPeriodPreset = (preset: PeriodPreset) => {
     const { du, au } = getPresetRange(preset);
@@ -1367,7 +1434,9 @@ export function FacturesPage() {
           aria-modal="true"
           aria-labelledby="facture-detail-title"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto"
-          onClick={handleCloseDetail}
+          onClick={() => {
+            if (!actionEnCours) handleCloseDetail();
+          }}
         >
           <div
             className="w-full max-w-2xl text-left my-8"
@@ -1609,6 +1678,67 @@ export function FacturesPage() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Actions : enregistrer le paiement ou annuler (facture EN_ATTENTE uniquement) */}
+                        {statut === "EN_ATTENTE" && (
+                          <div className="p-4 rounded-xl border border-border bg-card space-y-3">
+                            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                              <Receipt className="w-3.5 h-3.5 text-primary" />
+                              <span>Règlement de la facture</span>
+                            </div>
+
+                            <ErrorAlert
+                              error={actionError}
+                              onDismiss={() => setActionError(null)}
+                            />
+
+                            <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                              <div className="space-y-1.5 flex-1">
+                                <Label htmlFor="facture-date-paiement" className="text-xs">
+                                  Date de paiement
+                                </Label>
+                                <Input
+                                  id="facture-date-paiement"
+                                  type="date"
+                                  value={datePaiementSaisie}
+                                  min={(factureDetail.dateEmission || "").slice(0, 10) || undefined}
+                                  max={toDateInputString(new Date())}
+                                  onChange={(e) => setDatePaiementSaisie(e.target.value)}
+                                  disabled={actionEnCours}
+                                />
+                              </div>
+                              <Button
+                                type="button"
+                                onClick={() => void handleEnregistrerPaiement()}
+                                disabled={actionEnCours || !datePaiementSaisie}
+                                className="cursor-pointer flex items-center gap-1.5"
+                              >
+                                {isPaying ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="w-4 h-4" />
+                                )}
+                                <span>Enregistrer le paiement</span>
+                              </Button>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-border">
+                              <span className="text-xs text-muted-foreground">
+                                L'annulation est définitive : la séance ne pourra pas être refacturée.
+                              </span>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={() => setConfirmAnnulationOpen(true)}
+                                disabled={actionEnCours}
+                                className="cursor-pointer flex items-center gap-1.5"
+                              >
+                                <Ban className="w-4 h-4" />
+                                <span>Annuler la facture</span>
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </>
                     );
                   })()}
@@ -1633,6 +1763,26 @@ export function FacturesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmAnnulationOpen && factureDetail !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAnnulationOpen(false);
+        }}
+        title="Annuler cette facture ?"
+        description={
+          factureDetail
+            ? `La facture ${factureDetail.numero} (${formatCurrency(
+                extractMontantTtc(factureDetail)
+              )} TTC) passera au statut « Annulée ». Cette action est définitive : la séance associée ne pourra pas être refacturée.`
+            : undefined
+        }
+        confirmLabel="Annuler définitivement"
+        cancelLabel="Conserver la facture"
+        variant="destructive"
+        isLoading={isCancelling}
+        onConfirm={handleConfirmAnnulation}
+      />
     </div>
   );
 }

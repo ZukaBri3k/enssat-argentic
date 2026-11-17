@@ -71,7 +71,8 @@ Quand ce document et les diagrammes divergent, **ce document fait foi**.
 - `montant_ttc = montant_ht × (1 + taux_tva / 100)`, non stocké.
 - **Numéro** : `FAC-{année d'émission}-{séquence sur 4 chiffres}`, séquence remise à 1 chaque année ; calcul `max + 1` de l'année dans la transaction de génération, contrainte UNIQUE en garde-fou.
 - Les coordonnées client, le détail de la prestation et le nom du photographe sont **copiés** dans la facture à la génération (figés). `prestation_type` contient le libellé de la spécialité.
-- Statut de paiement : EN_ATTENTE → PAYEE (avec `date_paiement`) | ANNULEE.
+- Statut de paiement : EN_ATTENTE → PAYEE (avec `date_paiement`) | ANNULEE. PAYEE et ANNULEE sont finaux ; payer ou annuler une facture non EN_ATTENTE → `409`.
+- `date_paiement` saisie par la secrétaire, comprise entre la date d'émission et aujourd'hui (sinon `409`), pour ne pas fausser le CA.
 - Une facture **ANNULEE est définitive** : la séance ne peut pas être refacturée (choix assumé, 1-1 strict).
 - **PDF généré côté backend** (OpenPDF) : `GET /factures/{id}/pdf` → `application/pdf`.
 

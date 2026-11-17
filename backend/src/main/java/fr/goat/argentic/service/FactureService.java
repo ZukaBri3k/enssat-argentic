@@ -2,6 +2,7 @@ package fr.goat.argentic.service;
 
 import fr.goat.argentic.dto.FactureRequest;
 import fr.goat.argentic.dto.FactureResponse;
+import fr.goat.argentic.dto.PaiementFactureRequest;
 import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
@@ -87,9 +88,52 @@ public class FactureService {
     }
 
     public FactureResponse getFactureById(Long id) {
-        Facture facture = factureRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Facture non trouvée avec l'id : " + id));
+        return FactureResponse.fromEntity(trouverFacture(id));
+    }
+
+    @Transactional
+    public FactureResponse enregistrerPaiement(Long id, PaiementFactureRequest request) {
+        if (request == null || request.datePaiement() == null) {
+            throw new DonneeInvalideException("datePaiement", "La date de paiement est obligatoire");
+        }
+        LocalDate datePaiement = request.datePaiement();
+
+        Facture facture = trouverFacture(id);
+        verifierEnAttente(facture);
+
+        if (datePaiement.isBefore(facture.getDateEmission())) {
+            throw new RegleMetierException("La date de paiement ne peut pas précéder la date d'émission de la facture ("
+                    + facture.getDateEmission() + ").");
+        }
+        if (datePaiement.isAfter(LocalDate.now())) {
+            throw new RegleMetierException("La date de paiement ne peut pas être dans le futur.");
+        }
+
+        facture.setStatutPaiement(StatutPaiement.PAYEE);
+        facture.setDatePaiement(datePaiement);
         return FactureResponse.fromEntity(facture);
+    }
+
+    // Annulation définitive : la séance ne pourra pas être refacturée (1-1 strict)
+    @Transactional
+    public FactureResponse annulerFacture(Long id) {
+        Facture facture = trouverFacture(id);
+        verifierEnAttente(facture);
+        facture.setStatutPaiement(StatutPaiement.ANNULEE);
+        return FactureResponse.fromEntity(facture);
+    }
+
+    // Seule une facture EN_ATTENTE peut être payée ou annulée (PAYEE et ANNULEE sont finaux)
+    private static void verifierEnAttente(Facture facture) {
+        if (facture.getStatutPaiement() != StatutPaiement.EN_ATTENTE) {
+            throw new RegleMetierException("La facture " + facture.getNumero() + " est au statut " + facture.getStatutPaiement()
+                    + " : seule une facture EN_ATTENTE peut être payée ou annulée.");
+        }
+    }
+
+    private Facture trouverFacture(Long id) {
+        return factureRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Facture non trouvée avec l'id : " + id));
     }
 
     private String genererProchainNumero(int annee) {
