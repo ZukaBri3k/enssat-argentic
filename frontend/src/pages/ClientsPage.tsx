@@ -4,6 +4,7 @@ import {
   apiDeleteClient,
   apiGetClients,
   apiUpdateClient,
+  TYPE_CLIENT_LABELS,
   type Client,
   type ClientRequest,
   type TypeClient,
@@ -21,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { TONS } from "@/lib/tons";
 import {
   Building2,
   FileText,
@@ -212,10 +214,10 @@ export function ClientsPage() {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Users className="w-6 h-6 text-primary" />
+            <Users className="w-6 h-6 text-primary shrink-0" />
             <span>Gestion des clients</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -223,14 +225,14 @@ export function ClientsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5 sm:shrink-0">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={fetchClients}
             disabled={loading}
-            className="cursor-pointer gap-1.5"
+            className="cursor-pointer gap-1.5 w-full h-9 sm:w-auto sm:h-7"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             <span>Actualiser</span>
@@ -240,7 +242,7 @@ export function ClientsPage() {
             type="button"
             size="sm"
             onClick={openCreateForm}
-            className="cursor-pointer gap-1.5"
+            className="cursor-pointer gap-1.5 w-full h-9 sm:w-auto sm:h-7"
           >
             <Plus className="w-4 h-4" />
             <span>Nouveau client</span>
@@ -255,8 +257,8 @@ export function ClientsPage() {
       {isFormOpen && (
         <Card className="border-primary/40 shadow-md">
           <CardHeader className="pb-3 border-b border-border/60">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <CardTitle className="text-lg flex items-center gap-2">
                   {editingClient ? (
                     <>
@@ -279,10 +281,10 @@ export function ClientsPage() {
 
               {editingClient && (
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                  className={`inline-flex items-center gap-1.5 self-start shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${
                     editingClient.type === "ENTREPRISE"
-                      ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
-                      : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                      ? `border ${TONS.accent.badge}`
+                      : `border ${TONS.info.badge}`
                   }`}
                 >
                   {editingClient.type === "ENTREPRISE" ? (
@@ -290,7 +292,7 @@ export function ClientsPage() {
                   ) : (
                     <User className="w-3.5 h-3.5" />
                   )}
-                  {editingClient.type} (Verrouillé)
+                  {TYPE_CLIENT_LABELS[editingClient.type]} (non modifiable)
                 </span>
               )}
             </div>
@@ -304,18 +306,18 @@ export function ClientsPage() {
               {!editingClient && (
                 <div className="space-y-1.5">
                   <Label>Type de client *</Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setFormData((prev) => ({ ...prev, type: "PARTICULIER" }))}
                       className={`flex items-center gap-2.5 p-3 rounded-lg border text-left cursor-pointer transition-all ${
                         formData.type === "PARTICULIER"
-                          ? "border-primary bg-primary/5 text-foreground ring-1 ring-primary"
+                          ? "border-chart-1 bg-chart-1/5 text-foreground ring-1 ring-chart-1"
                           : "border-border hover:bg-muted/40 text-muted-foreground"
                       }`}
                     >
-                      <User className="w-4 h-4 text-primary" />
-                      <div>
+                      <User className={`w-4 h-4 shrink-0 ${TONS.info.text}`} />
+                      <div className="min-w-0">
                         <div className="text-sm font-semibold text-foreground">Particulier</div>
                         <div className="text-xs text-muted-foreground">Nom & Prénom requis</div>
                       </div>
@@ -326,12 +328,12 @@ export function ClientsPage() {
                       onClick={() => setFormData((prev) => ({ ...prev, type: "ENTREPRISE" }))}
                       className={`flex items-center gap-2.5 p-3 rounded-lg border text-left cursor-pointer transition-all ${
                         formData.type === "ENTREPRISE"
-                          ? "border-primary bg-primary/5 text-foreground ring-1 ring-primary"
+                          ? "border-chart-4 bg-chart-4/5 text-foreground ring-1 ring-chart-4"
                           : "border-border hover:bg-muted/40 text-muted-foreground"
                       }`}
                     >
-                      <Building2 className="w-4 h-4 text-primary" />
-                      <div>
+                      <Building2 className={`w-4 h-4 shrink-0 ${TONS.accent.text}`} />
+                      <div className="min-w-0">
                         <div className="text-sm font-semibold text-foreground">Entreprise</div>
                         <div className="text-xs text-muted-foreground">Raison sociale & SIREN/TVA</div>
                       </div>
@@ -435,17 +437,17 @@ export function ClientsPage() {
               </div>
 
               {/* Actions du formulaire */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border/60">
+              <div className="flex flex-col-reverse gap-2 pt-3 border-t border-border/60 sm:flex-row sm:justify-end sm:gap-2.5">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={closeForm}
                   disabled={isSubmitting}
-                  className="cursor-pointer"
+                  className="cursor-pointer w-full h-9 sm:w-auto sm:h-8"
                 >
                   Annuler
                 </Button>
-                <Button type="submit" disabled={isSubmitting} className="cursor-pointer gap-2">
+                <Button type="submit" disabled={isSubmitting} className="cursor-pointer gap-2 w-full h-9 sm:w-auto sm:h-8">
                   {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>{editingClient ? "Enregistrer les modifications" : "Créer le client"}</span>
                 </Button>
@@ -457,7 +459,7 @@ export function ClientsPage() {
 
       {/* Barre de recherche et filtres */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-sm">
+        <div className="relative w-full sm:flex-1 sm:max-w-sm">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground pointer-events-none" />
           <Input
             type="search"
@@ -468,13 +470,13 @@ export function ClientsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+        <div className="flex w-full items-center gap-1 bg-muted p-1 rounded-lg sm:w-auto">
           <Button
             type="button"
             size="xs"
             variant={filterType === "ALL" ? "default" : "ghost"}
             onClick={() => setFilterType("ALL")}
-            className="cursor-pointer"
+            className="cursor-pointer flex-auto min-w-0 h-auto min-h-9 py-1 whitespace-normal leading-tight sm:flex-none sm:h-6 sm:min-h-0 sm:py-0 sm:whitespace-nowrap"
           >
             Tous ({clients.length})
           </Button>
@@ -483,9 +485,9 @@ export function ClientsPage() {
             size="xs"
             variant={filterType === "PARTICULIER" ? "default" : "ghost"}
             onClick={() => setFilterType("PARTICULIER")}
-            className="cursor-pointer gap-1.5"
+            className="cursor-pointer gap-1.5 flex-auto min-w-0 h-auto min-h-9 py-1 whitespace-normal leading-tight sm:flex-none sm:h-6 sm:min-h-0 sm:py-0 sm:whitespace-nowrap"
           >
-            <User className="w-3.5 h-3.5" />
+            <User className="hidden w-3.5 h-3.5 sm:block" />
             Particuliers ({clients.filter((c) => c.type === "PARTICULIER").length})
           </Button>
           <Button
@@ -493,9 +495,9 @@ export function ClientsPage() {
             size="xs"
             variant={filterType === "ENTREPRISE" ? "default" : "ghost"}
             onClick={() => setFilterType("ENTREPRISE")}
-            className="cursor-pointer gap-1.5"
+            className="cursor-pointer gap-1.5 flex-auto min-w-0 h-auto min-h-9 py-1 whitespace-normal leading-tight sm:flex-none sm:h-6 sm:min-h-0 sm:py-0 sm:whitespace-nowrap"
           >
-            <Building2 className="w-3.5 h-3.5" />
+            <Building2 className="hidden w-3.5 h-3.5 sm:block" />
             Entreprises ({clients.filter((c) => c.type === "ENTREPRISE").length})
           </Button>
         </div>
@@ -547,10 +549,10 @@ export function ClientsPage() {
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                             isEntreprise
-                              ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
-                              : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                              ? `border ${TONS.accent.badge}`
+                              : `border ${TONS.info.badge}`
                           }`}
                         >
                           {isEntreprise ? (
@@ -558,9 +560,8 @@ export function ClientsPage() {
                           ) : (
                             <User className="w-3 h-3" />
                           )}
-                          {isEntreprise ? "Entreprise" : "Particulier"}
+                          {TYPE_CLIENT_LABELS[client.type]}
                         </span>
-                        <span className="text-xs font-mono text-muted-foreground">#{client.id}</span>
                       </div>
 
                       <CardTitle className="text-base font-semibold truncate pt-1">
@@ -573,7 +574,7 @@ export function ClientsPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer"
+                        className="size-9 sm:size-8 text-muted-foreground hover:text-foreground cursor-pointer"
                         onClick={() => openEditForm(client)}
                         title="Modifier ce client"
                       >
@@ -583,7 +584,7 @@ export function ClientsPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                        className="size-9 sm:size-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                         onClick={() => setClientToDelete(client)}
                         title="Supprimer ce client"
                       >
@@ -598,7 +599,7 @@ export function ClientsPage() {
                     <Mail className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                     <a
                       href={`mailto:${client.email}`}
-                      className="truncate hover:text-primary transition-colors hover:underline"
+                      className="min-w-0 truncate hover:text-primary transition-colors hover:underline"
                     >
                       {client.email}
                     </a>
@@ -606,13 +607,13 @@ export function ClientsPage() {
 
                   <div className="flex items-start gap-2">
                     <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
-                    <span className="line-clamp-2">{client.adressePostale}</span>
+                    <span className="min-w-0 break-words line-clamp-2">{client.adressePostale}</span>
                   </div>
 
                   {isEntreprise && client.numeroSirenTva && (
                     <div className="flex items-center gap-2 pt-1 font-mono text-[11px] text-foreground">
                       <FileText className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
-                      <span>TVA/SIREN : {client.numeroSirenTva}</span>
+                      <span className="min-w-0 break-all">TVA/SIREN : {client.numeroSirenTva}</span>
                     </div>
                   )}
                 </CardContent>
