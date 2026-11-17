@@ -5,12 +5,14 @@ import {
   apiCreateSeance,
   apiDeleteSeance,
   apiGetClients,
+  apiGetFactures,
   apiGetPhotographes,
   apiGetSeanceById,
   apiGetSeances,
   apiGetSpecialites,
   apiUpdateSeance,
   type ClientSummary,
+  type FactureResponse,
   type FactureSummary,
   type PhotographeSummary,
   type SeanceRequest,
@@ -19,6 +21,8 @@ import {
   type StatutPaiement,
   type StatutSeance,
 } from "@/lib/api";
+import { useNavigate } from "@/lib/router";
+import { GenererFactureModal } from "@/components/factures/GenererFactureModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { useToast } from "@/components/shared/ToastProvider";
@@ -43,6 +47,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  ExternalLink,
   Eye,
   FileText,
   Filter,
@@ -53,6 +58,7 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Receipt,
   RefreshCw,
   RotateCcw,
   Tag,
@@ -369,6 +375,52 @@ function extractFacture(s: SeanceResponse): FactureSummary | null {
   return null;
 }
 
+function resolveFactureForSeance(
+  seance: SeanceResponse,
+  facturesApi: FactureResponse[]
+): FactureSummary | null {
+  const baseFacture = extractFacture(seance);
+  const matchingApiFacture = facturesApi.find(
+    (f) =>
+      f.seanceId === seance.id ||
+      f.seance?.id === seance.id ||
+      (Boolean(seance.factureId) && f.id === seance.factureId) ||
+      (Boolean(baseFacture?.id) && f.id === baseFacture?.id)
+  );
+
+  if (!baseFacture && !matchingApiFacture) {
+    return null;
+  }
+
+  if (matchingApiFacture) {
+    const resolvedStatut =
+      matchingApiFacture.statutPaiement ??
+      matchingApiFacture.statut ??
+      baseFacture?.statutPaiement ??
+      baseFacture?.statut;
+
+    return {
+      id: matchingApiFacture.id || baseFacture?.id || 0,
+      numero:
+        matchingApiFacture.numero ||
+        baseFacture?.numero ||
+        `Facture #${matchingApiFacture.id}`,
+      dateEmission: matchingApiFacture.dateEmission ?? baseFacture?.dateEmission,
+      montantHt: matchingApiFacture.montantHt ?? baseFacture?.montantHt,
+      tauxTva: matchingApiFacture.tauxTva ?? baseFacture?.tauxTva,
+      montantTtc: matchingApiFacture.montantTtc ?? baseFacture?.montantTtc,
+      statutPaiement: resolvedStatut,
+      statut: resolvedStatut,
+      datePaiement:
+        matchingApiFacture.datePaiement !== undefined
+          ? matchingApiFacture.datePaiement
+          : baseFacture?.datePaiement,
+    };
+  }
+
+  return baseFacture;
+}
+
 // Transitions de statut possibles conformément aux règles métier :
 // PLANIFIEE -> CONFIRMEE | ANNULEE ; CONFIRMEE -> TERMINEE | ANNULEE ; TERMINEE et ANNULEE finaux
 const TRANSITIONS_POSSIBLES: Record<StatutSeance, StatutSeance[]> = {
@@ -440,6 +492,7 @@ function isDebutSeancePasse(dateStr: string, heureDebut: string): boolean {
 
 export function SeancesPage() {
   const { success, showApiError } = useToast();
+  const navigate = useNavigate();
 
   // Mode d'affichage : Semaine (défaut), Jour ou Liste
   const [viewMode, setViewMode] = useState<ViewMode>("semaine");
@@ -464,6 +517,10 @@ export function SeancesPage() {
   const [photographesApi, setPhotographesApi] = useState<PhotographeSummary[]>([]);
   const [clientsApi, setClientsApi] = useState<ClientSummary[]>([]);
   const [specialitesApi, setSpecialitesApi] = useState<Specialite[]>([]);
+  const [facturesApi, setFacturesApi] = useState<FactureResponse[]>([]);
+
+  // État pour la modale de génération de facture
+  const [seanceToInvoice, setSeanceToInvoice] = useState<SeanceResponse | null>(null);
 
   // État pour la modale de détail d'une séance (GET /seances/{id})
   const [selectedSeanceId, setSelectedSeanceId] = useState<number | null>(null);
@@ -556,27 +613,33 @@ export function SeancesPage() {
     setRefreshTick((t) => t + 1);
   }, []);
 
-  // Chargement des séances depuis GET /seances avec les filtres actifs
+  // Chargement des séances depuis GET /seances et des factures existantes en parallèle
+  // (via Promise.allSettled afin que le planning continue de fonctionner si GET /factures n'est pas encore implémenté)
   useEffect(() => {
     let mounted = true;
     async function loadSeances() {
       setLoadingSeances(true);
       setSeancesError(null);
       try {
-        const data = await apiGetSeances({
-          du: effectivePeriod.du,
-          au: effectivePeriod.au,
-          photographeId: selectedPhotographeId || undefined,
-          clientId: selectedClientId || undefined,
-          statut: selectedStatut || undefined,
-        });
-        if (mounted) {
-          setSeances(Array.isArray(data) ? data : []);
+        const [seancesRes, facturesRes] = await Promise.allSettled([
+          apiGetSeances({
+            du: effectivePeriod.du,
+            au: effectivePeriod.au,
+            photographeId: selectedPhotographeId || undefined,
+            clientId: selectedClientId || undefined,
+            statut: selectedStatut || undefined,
+          }),
+          apiGetFactures(),
+        ]);
+        if (!mounted) return;
+        if (facturesRes.status === "fulfilled" && Array.isArray(facturesRes.value)) {
+          setFacturesApi(facturesRes.value);
         }
-      } catch (err) {
-        if (mounted) {
-          setSeancesError(err);
-          showApiError(err, "Impossible de charger le planning des séances");
+        if (seancesRes.status === "fulfilled") {
+          setSeances(Array.isArray(seancesRes.value) ? seancesRes.value : []);
+        } else {
+          setSeancesError(seancesRes.reason);
+          showApiError(seancesRes.reason, "Impossible de charger le planning des séances");
         }
       } finally {
         if (mounted) {
@@ -1070,6 +1133,69 @@ export function SeancesPage() {
       setIsDeleting(false);
     }
   }, [seanceToDelete, selectedSeanceId, handleCloseDetail, showApiError, success]);
+
+  // Mise à jour immédiate après génération d'une facture
+  const handleFactureGenerated = useCallback(
+    (facture: FactureResponse, seanceId: number) => {
+      const statutPaiement: StatutPaiement =
+        facture.statutPaiement ?? facture.statut ?? "EN_ATTENTE";
+
+      const factureSummary: FactureSummary = {
+        id: facture.id,
+        numero: facture.numero,
+        dateEmission: facture.dateEmission,
+        montantHt: facture.montantHt,
+        tauxTva: facture.tauxTva,
+        montantTtc: facture.montantTtc,
+        statutPaiement,
+        statut: statutPaiement,
+        datePaiement: facture.datePaiement ?? null,
+      };
+
+      setSeances((prev) =>
+        prev.map((item) =>
+          item.id === seanceId
+            ? {
+                ...item,
+                factureId: facture.id,
+                factureNumero: facture.numero,
+                factureStatut: statutPaiement,
+                facture: factureSummary,
+              }
+            : item
+        )
+      );
+
+      setSeanceDetail((prev) =>
+        prev && prev.id === seanceId
+          ? {
+              ...prev,
+              factureId: facture.id,
+              factureNumero: facture.numero,
+              factureStatut: statutPaiement,
+              facture: factureSummary,
+            }
+          : prev
+      );
+
+      setFacturesApi((prev) => {
+        const normalizedFacture: FactureResponse = {
+          ...facture,
+          seanceId: facture.seanceId ?? seanceId,
+          statutPaiement,
+          statut: statutPaiement,
+          datePaiement: facture.datePaiement ?? null,
+        };
+        const exists = prev.some((f) => f.id === facture.id);
+        return exists
+          ? prev.map((f) => (f.id === facture.id ? normalizedFacture : f))
+          : [normalizedFacture, ...prev];
+      });
+
+      setSeanceToInvoice(null);
+    },
+    []
+  );
 
   // Navigation temporelle
   const goToPrevious = () => {
@@ -1627,6 +1753,7 @@ export function SeancesPage() {
                       const photographeNom = extractPhotographeNom(seance);
                       const clientNom = extractClientNom(seance);
                       const specialiteLibelle = extractSpecialiteLibelle(seance);
+                      const facture = resolveFactureForSeance(seance, facturesApi);
 
                       return (
                         <button
@@ -1664,6 +1791,22 @@ export function SeancesPage() {
                               <span className="truncate">{seance.lieu}</span>
                             </div>
                           </div>
+
+                          {seance.statut === "TERMINEE" && (
+                            <div className="pt-1 border-t border-border/50 flex items-center">
+                              {facture ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-100/80 text-emerald-800 border border-emerald-300/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 max-w-full truncate">
+                                  <FileText className="w-2.5 h-2.5 shrink-0" />
+                                  <span className="truncate">{facture.numero}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100/80 text-amber-800 border border-amber-300/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                                  <Receipt className="w-2.5 h-2.5 shrink-0" />
+                                  <span>À facturer</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </button>
                       );
                     })
@@ -1760,6 +1903,10 @@ export function SeancesPage() {
                               const heureDebut = extractHeureDebut(seance);
                               const heureFin = extractHeureFin(seance);
                               const dureeMin = extractDureeMinutes(seance);
+                              const facture = resolveFactureForSeance(
+                                seance,
+                                facturesApi
+                              );
 
                               return (
                                 <button
@@ -1777,11 +1924,25 @@ export function SeancesPage() {
                                         ({formatDuration(dureeMin)})
                                       </span>
                                     </div>
-                                    <span
-                                      className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${stStyle.badgeClass}`}
-                                    >
-                                      {stStyle.label}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                      {seance.statut === "TERMINEE" &&
+                                        (facture ? (
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full border bg-emerald-100/80 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                                            <FileText className="w-3 h-3" />
+                                            <span>{facture.numero}</span>
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-amber-100/80 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                                            <Receipt className="w-3 h-3" />
+                                            <span>À facturer</span>
+                                          </span>
+                                        ))}
+                                      <span
+                                        className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${stStyle.badgeClass}`}
+                                      >
+                                        {stStyle.label}
+                                      </span>
+                                    </div>
                                   </div>
 
                                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -1869,7 +2030,7 @@ export function SeancesPage() {
                       const heureDebut = extractHeureDebut(seance);
                       const heureFin = extractHeureFin(seance);
                       const duree = extractDureeMinutes(seance);
-                      const facture = extractFacture(seance);
+                      const facture = resolveFactureForSeance(seance, facturesApi);
 
                       return (
                         <tr
@@ -1934,11 +2095,18 @@ export function SeancesPage() {
                                 />
                                 {stStyle.label}
                               </span>
-                              {facture && (
+                              {facture ? (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
                                   <FileText className="w-3 h-3" />
                                   {facture.numero}
                                 </span>
+                              ) : (
+                                seance.statut === "TERMINEE" && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                                    <Receipt className="w-3 h-3" />
+                                    À facturer
+                                  </span>
+                                )
                               )}
                             </div>
                           </td>
@@ -1948,6 +2116,18 @@ export function SeancesPage() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                              {seance.statut === "TERMINEE" && !facture && (
+                                <Button
+                                  type="button"
+                                  size="xs"
+                                  onClick={() => setSeanceToInvoice(seance)}
+                                  className="cursor-pointer gap-1"
+                                >
+                                  <Receipt className="w-3.5 h-3.5" />
+                                  <span>Générer la facture</span>
+                                </Button>
+                              )}
+
                               {(TRANSITIONS_POSSIBLES[seance.statut] ?? []).map(
                                 (targetStatut) => {
                                   const meta = TRANSITION_META[targetStatut];
@@ -2244,18 +2424,36 @@ export function SeancesPage() {
 
                     {/* Bloc 3 : Facture éventuelle */}
                     <div className="p-4 rounded-xl border border-border bg-card space-y-2.5">
-                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-primary" />
-                        <span>Facture associée</span>
-                      </div>
-
                       {(() => {
-                        const facture = extractFacture(seanceDetail);
+                        const facture = resolveFactureForSeance(
+                          seanceDetail,
+                          facturesApi
+                        );
+
                         if (!facture) {
                           return (
-                            <div className="text-xs text-muted-foreground italic">
-                              Aucune facture émise pour cette séance.
-                            </div>
+                            <>
+                              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5 text-primary" />
+                                <span>Facture associée</span>
+                              </div>
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="text-xs text-muted-foreground italic">
+                                  Aucune facture émise pour cette séance.
+                                </div>
+                                {seanceDetail.statut === "TERMINEE" && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => setSeanceToInvoice(seanceDetail)}
+                                    className="cursor-pointer gap-1.5 shrink-0"
+                                  >
+                                    <Receipt className="w-4 h-4" />
+                                    <span>Générer la facture</span>
+                                  </Button>
+                                )}
+                              </div>
+                            </>
                           );
                         }
 
@@ -2266,64 +2464,83 @@ export function SeancesPage() {
                           : null;
 
                         return (
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                            <div>
-                              <div className="text-xs text-muted-foreground">
-                                Numéro
+                          <>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5 text-primary" />
+                                <span>Facture associée</span>
                               </div>
-                              <div className="text-sm font-mono font-bold text-foreground">
-                                {facture.numero}
-                              </div>
-                              {facture.dateEmission && (
-                                <div className="text-[11px] text-muted-foreground">
-                                  Émise le{" "}
-                                  {formatDateShortFr(facture.dateEmission)}
-                                </div>
-                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="xs"
+                                onClick={() => navigate("/factures")}
+                                className="cursor-pointer gap-1"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Voir dans les factures</span>
+                              </Button>
                             </div>
 
-                            <div>
-                              <div className="text-xs text-muted-foreground">
-                                Montant
-                              </div>
-                              <div className="text-sm font-bold text-foreground">
-                                {facture.montantTtc !== undefined
-                                  ? `${formatCurrency(facture.montantTtc)} TTC`
-                                  : facture.montantHt !== undefined
-                                    ? `${formatCurrency(facture.montantHt)} HT`
-                                    : "—"}
-                              </div>
-                              {facture.montantHt !== undefined && (
-                                <div className="text-[11px] text-muted-foreground">
-                                  HT : {formatCurrency(facture.montantHt)}
-                                  {facture.tauxTva !== undefined
-                                    ? ` (TVA ${facture.tauxTva}%)`
-                                    : ""}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                              <div>
+                                <div className="text-xs text-muted-foreground">
+                                  Numéro
                                 </div>
-                              )}
-                            </div>
+                                <div className="text-sm font-mono font-bold text-foreground">
+                                  {facture.numero}
+                                </div>
+                                {facture.dateEmission && (
+                                  <div className="text-[11px] text-muted-foreground">
+                                    Émise le{" "}
+                                    {formatDateShortFr(facture.dateEmission)}
+                                  </div>
+                                )}
+                              </div>
 
-                            <div>
-                              <div className="text-xs text-muted-foreground">
-                                Statut de paiement
-                              </div>
-                              {paiementBadge ? (
-                                <span
-                                  className={`mt-0.5 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${paiementBadge.className}`}
-                                >
-                                  {paiementBadge.label}
-                                </span>
-                              ) : (
-                                <div className="text-sm font-medium">—</div>
-                              )}
-                              {facture.datePaiement && (
-                                <div className="text-[11px] text-muted-foreground mt-0.5">
-                                  Payée le{" "}
-                                  {formatDateShortFr(facture.datePaiement)}
+                              <div>
+                                <div className="text-xs text-muted-foreground">
+                                  Montant
                                 </div>
-                              )}
+                                <div className="text-sm font-bold text-foreground">
+                                  {facture.montantTtc !== undefined
+                                    ? `${formatCurrency(facture.montantTtc)} TTC`
+                                    : facture.montantHt !== undefined
+                                      ? `${formatCurrency(facture.montantHt)} HT`
+                                      : "—"}
+                                </div>
+                                {facture.montantHt !== undefined && (
+                                  <div className="text-[11px] text-muted-foreground">
+                                    HT : {formatCurrency(facture.montantHt)}
+                                    {facture.tauxTva !== undefined
+                                      ? ` (TVA ${facture.tauxTva}%)`
+                                      : ""}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div>
+                                <div className="text-xs text-muted-foreground">
+                                  Statut de paiement
+                                </div>
+                                {paiementBadge ? (
+                                  <span
+                                    className={`mt-0.5 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${paiementBadge.className}`}
+                                  >
+                                    {paiementBadge.label}
+                                  </span>
+                                ) : (
+                                  <div className="text-sm font-medium">—</div>
+                                )}
+                                {facture.datePaiement && (
+                                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                                    Payée le{" "}
+                                    {formatDateShortFr(facture.datePaiement)}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          </>
                         );
                       })()}
                     </div>
@@ -2425,6 +2642,19 @@ export function SeancesPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
                   {seanceDetail ? (
                     <div className="flex flex-wrap items-center gap-2">
+                      {seanceDetail.statut === "TERMINEE" &&
+                        !resolveFactureForSeance(seanceDetail, facturesApi) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => setSeanceToInvoice(seanceDetail)}
+                            className="cursor-pointer gap-1.5"
+                          >
+                            <Receipt className="w-4 h-4" />
+                            <span>Générer la facture</span>
+                          </Button>
+                        )}
+
                       {isSeanceModifiable(seanceDetail.statut) ? (
                         <Button
                           type="button"
@@ -2895,6 +3125,13 @@ export function SeancesPage() {
         variant="destructive"
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}
+      />
+
+      {/* ==================== MODALE DE GÉNÉRATION DE FACTURE ==================== */}
+      <GenererFactureModal
+        seance={seanceToInvoice}
+        onClose={() => setSeanceToInvoice(null)}
+        onSuccess={handleFactureGenerated}
       />
     </div>
   );

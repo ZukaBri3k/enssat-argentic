@@ -493,3 +493,90 @@ export async function apiChangerStatutSeance(
 export async function apiDeleteSeance(id: number): Promise<void> {
   return api.delete<void>(`/seances/${id}`);
 }
+
+// Endpoints Factures
+export interface CoordonneesFacturationDto {
+  identite: string;
+  adressePostale: string;
+  email: string;
+  numeroSirenTva?: string | null;
+}
+
+export interface PrestationFactureeDto {
+  date: string;
+  heureDebut: string;
+  dureeMinutes: number;
+  typeSeance: string;
+  nomPhotographe: string;
+}
+
+export interface FactureResponse {
+  id: number;
+  numero: string;
+  seanceId?: number;
+  seance?: { id: number };
+  dateEmission: string;
+  montantHt: number;
+  tauxTva: number;
+  montantTtc: number;
+  statutPaiement?: StatutPaiement;
+  statut?: StatutPaiement;
+  datePaiement?: string | null;
+  coordonneesClient?: CoordonneesFacturationDto;
+  prestation?: PrestationFactureeDto;
+  clientIdentite?: string;
+  clientAdressePostale?: string;
+  clientEmail?: string;
+  clientNumeroSirenTva?: string | null;
+  prestationDate?: string;
+  prestationHeureDebut?: string;
+  prestationDureeMinutes?: number;
+  prestationType?: string;
+  typeSeance?: string;
+  photographeNom?: string;
+  nomPhotographe?: string;
+}
+
+export interface FactureRequest {
+  montantHt: number;
+  tauxTva?: number | null;
+}
+
+export interface FactureFilters {
+  statut?: StatutPaiement | "";
+  du?: string;
+  au?: string;
+}
+
+export async function apiGenererFacture(
+  seanceId: number,
+  request: FactureRequest
+): Promise<FactureResponse> {
+  const payload: Record<string, number> = { montantHt: request.montantHt };
+  if (request.tauxTva !== undefined && request.tauxTva !== null) {
+    payload.tauxTva = request.tauxTva;
+  }
+  return api.post<FactureResponse>(`/seances/${seanceId}/facture`, payload);
+}
+
+export async function apiGetFactures(
+  filters: FactureFilters = {}
+): Promise<FactureResponse[]> {
+  const params = new URLSearchParams();
+  if (filters.statut) {
+    params.set("statut", filters.statut);
+    params.set("statutPaiement", filters.statut);
+  }
+  if (filters.du) {
+    params.set("du", filters.du);
+  }
+  if (filters.au) {
+    params.set("au", filters.au);
+  }
+  const query = params.toString();
+  return api.get<FactureResponse[]>(query ? `/factures?${query}` : "/factures");
+}
+
+export async function apiGetFactureById(id: number): Promise<FactureResponse> {
+  return api.get<FactureResponse>(`/factures/${id}`);
+}
