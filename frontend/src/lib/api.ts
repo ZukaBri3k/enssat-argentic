@@ -580,3 +580,14 @@ export async function apiGetFactures(
 export async function apiGetFactureById(id: number): Promise<FactureResponse> {
   return api.get<FactureResponse>(`/factures/${id}`);
 }
+
+export async function apiEnregistrerPaiementFacture(
+  id: number,
+  datePaiement: string
+): Promise<FactureResponse> {
+  return api.post<FactureResponse>(`/factures/${id}/paiement`, { datePaiement });
+}
+
+export async function apiAnnulerFacture(id: number): Promise<FactureResponse> {
+  return api.post<FactureResponse>(`/factures/${id}/annulation`);
+}
