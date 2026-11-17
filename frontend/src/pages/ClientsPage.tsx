@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { TONS } from "@/lib/tons";
 import {
   Building2,
   FileText,
@@ -282,8 +283,8 @@ export function ClientsPage() {
                 <span
                   className={`inline-flex items-center gap-1.5 self-start shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${
                     editingClient.type === "ENTREPRISE"
-                      ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
-                      : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                      ? `border ${TONS.accent.badge}`
+                      : `border ${TONS.info.badge}`
                   }`}
                 >
                   {editingClient.type === "ENTREPRISE" ? (
@@ -311,11 +312,11 @@ export function ClientsPage() {
                       onClick={() => setFormData((prev) => ({ ...prev, type: "PARTICULIER" }))}
                       className={`flex items-center gap-2.5 p-3 rounded-lg border text-left cursor-pointer transition-all ${
                         formData.type === "PARTICULIER"
-                          ? "border-primary bg-primary/5 text-foreground ring-1 ring-primary"
+                          ? "border-chart-1 bg-chart-1/5 text-foreground ring-1 ring-chart-1"
                           : "border-border hover:bg-muted/40 text-muted-foreground"
                       }`}
                     >
-                      <User className="w-4 h-4 text-primary shrink-0" />
+                      <User className={`w-4 h-4 shrink-0 ${TONS.info.text}`} />
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-foreground">Particulier</div>
                         <div className="text-xs text-muted-foreground">Nom & Prénom requis</div>
@@ -327,11 +328,11 @@ export function ClientsPage() {
                       onClick={() => setFormData((prev) => ({ ...prev, type: "ENTREPRISE" }))}
                       className={`flex items-center gap-2.5 p-3 rounded-lg border text-left cursor-pointer transition-all ${
                         formData.type === "ENTREPRISE"
-                          ? "border-primary bg-primary/5 text-foreground ring-1 ring-primary"
+                          ? "border-chart-4 bg-chart-4/5 text-foreground ring-1 ring-chart-4"
                           : "border-border hover:bg-muted/40 text-muted-foreground"
                       }`}
                     >
-                      <Building2 className="w-4 h-4 text-primary shrink-0" />
+                      <Building2 className={`w-4 h-4 shrink-0 ${TONS.accent.text}`} />
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-foreground">Entreprise</div>
                         <div className="text-xs text-muted-foreground">Raison sociale & SIREN/TVA</div>
@@ -550,8 +551,8 @@ export function ClientsPage() {
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
                             isEntreprise
-                              ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
-                              : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                              ? `border ${TONS.accent.badge}`
+                              : `border ${TONS.info.badge}`
                           }`}
                         >
                           {isEntreprise ? (

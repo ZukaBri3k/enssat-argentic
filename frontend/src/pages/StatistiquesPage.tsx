@@ -18,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { TONS } from "@/lib/tons";
 import {
   Award,
   BarChart3,
@@ -78,13 +79,13 @@ function getMontantTtc(ca: ChiffreAffairesResponse | null): number {
 
 function getRankBadgeClass(index: number): string {
   if (index === 0) {
-    return "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800";
+    return TONS.attention.badge;
   }
   if (index === 1) {
-    return "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700";
+    return TONS.neutre.badge;
   }
   if (index === 2) {
-    return "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800";
+    return TONS.accent.badge;
   }
   return "bg-muted text-muted-foreground border-border";
 }
@@ -188,7 +189,7 @@ export function StatistiquesPage() {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2.5 sm:justify-end sm:shrink-0">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${TONS.accent.badge}`}>
             <ShieldCheck className="w-3.5 h-3.5" />
             Accès gestionnaire
           </span>
@@ -329,7 +330,7 @@ export function StatistiquesPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-xl border border-primary/25 bg-primary/5 shadow-xs space-y-1 min-w-0">
+            <div className={`p-4 rounded-xl border shadow-xs space-y-1 min-w-0 ${TONS.succes.surface}`}>
               <div className="text-xs font-medium uppercase tracking-wider text-primary">
                 Total encaissé (TTC)
               </div>
@@ -341,7 +342,7 @@ export function StatistiquesPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-1 min-w-0 sm:col-span-2 lg:col-span-1">
+            <div className={`p-4 rounded-xl border space-y-1 min-w-0 sm:col-span-2 lg:col-span-1 ${TONS.neutre.surface}`}>
               <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 TVA collectée
               </div>
@@ -407,7 +408,7 @@ export function StatistiquesPage() {
                           <div className="min-w-0">
                             <div className="font-medium text-sm text-foreground flex min-w-0 items-center gap-1.5">
                               <span className="truncate">{item.nom}</span>
-                              {idx === 0 && <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                              {idx === 0 && <Award className={`w-3.5 h-3.5 shrink-0 ${TONS.attention.text}`} />}
                             </div>
                             {item.email && (
                               <div className="text-xs text-muted-foreground truncate">
@@ -488,7 +489,7 @@ export function StatistiquesPage() {
                           <div className="min-w-0">
                             <div className="font-medium text-sm text-foreground flex min-w-0 items-center gap-1.5">
                               <span className="truncate">{item.nom}</span>
-                              {idx === 0 && <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                              {idx === 0 && <Award className={`w-3.5 h-3.5 shrink-0 ${TONS.attention.text}`} />}
                             </div>
                             {item.email && (
                               <div className="text-xs text-muted-foreground truncate">

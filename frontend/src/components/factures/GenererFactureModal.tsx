@@ -5,6 +5,7 @@ import {
   type FactureResponse,
   type SeanceResponse,
 } from "@/lib/api";
+import { TONS } from "@/lib/tons";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { useToast } from "@/components/shared/ToastProvider";
 import { Button } from "@/components/ui/button";
@@ -521,7 +522,7 @@ function GenererFactureModalContent({
                         {todayFormatted}
                       </strong>
                     </span>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${TONS.attention.badge}`}>
                       En attente
                     </span>
                   </div>

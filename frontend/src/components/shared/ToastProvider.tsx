@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useState } from "react";
 import { AlertCircle, CheckCircle2, Info, AlertTriangle, X } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { FieldErrorList } from "@/components/shared/FieldErrorList";
+import { TONS } from "@/lib/tons";
 
 export type ToastVariant = "success" | "error" | "info" | "warning";
 
@@ -108,18 +109,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((item) => {
           const styles: Record<ToastVariant, string> = {
             success:
-              "bg-card border-green-500/40 text-foreground shadow-lg ring-1 ring-green-500/20",
+              "bg-card border-primary/30 text-foreground shadow-lg ring-1 ring-primary/15",
             error:
               "bg-card border-destructive/40 text-foreground shadow-lg ring-1 ring-destructive/20",
             warning:
-              "bg-card border-amber-500/40 text-foreground shadow-lg ring-1 ring-amber-500/20",
+              "bg-card border-chart-2/50 text-foreground shadow-lg ring-1 ring-chart-2/25",
             info: "bg-card border-border text-foreground shadow-lg ring-1 ring-foreground/10",
           };
 
           const icons: Record<ToastVariant, React.ReactNode> = {
-            success: <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />,
+            success: <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${TONS.succes.text}`} />,
             error: <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />,
-            warning: <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />,
+            warning: <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${TONS.attention.text}`} />,
             info: <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />,
           };
 

@@ -9,6 +9,7 @@ import {
   type SeanceResponse,
   type StatutPaiement,
 } from "@/lib/api";
+import { PILL_ACTIVE, TONS } from "@/lib/tons";
 import { GenererFactureModal } from "@/components/factures/GenererFactureModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -63,29 +64,23 @@ const STATUT_PAIEMENT_STYLES: Record<StatutPaiement, StatutPaiementStyle> = {
   EN_ATTENTE: {
     label: "En attente",
     description: "Facture émise, règlement en attente",
-    badgeClass:
-      "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800",
-    dotClass: "bg-amber-500",
-    pillActiveClass:
-      "bg-amber-600 text-white border-amber-600 shadow-xs hover:bg-amber-700",
+    badgeClass: TONS.attention.badge,
+    dotClass: TONS.attention.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
   PAYEE: {
     label: "Payée",
     description: "Facture réglée par le client",
-    badgeClass:
-      "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800",
-    dotClass: "bg-emerald-500",
-    pillActiveClass:
-      "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700",
+    badgeClass: TONS.succes.badge,
+    dotClass: TONS.succes.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
   ANNULEE: {
     label: "Annulée",
     description: "Facture annulée définitivement (séance non refacturable)",
-    badgeClass:
-      "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800",
-    dotClass: "bg-rose-500",
-    pillActiveClass:
-      "bg-rose-600 text-white border-rose-600 shadow-xs hover:bg-rose-700",
+    badgeClass: TONS.danger.badge,
+    dotClass: TONS.danger.dot,
+    pillActiveClass: PILL_ACTIVE,
   },
 };
 
@@ -785,7 +780,7 @@ export function FacturesPage() {
 
         <div className="flex flex-wrap items-center gap-2.5">
           {seancesEnAttenteFacturation.length > 0 && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${TONS.attention.badge}`}>
               <Sparkles className="w-3.5 h-3.5" />
               <span>
                 {seancesEnAttenteFacturation.length} séance
@@ -813,14 +808,14 @@ export function FacturesPage() {
 
       {/* Section 1 : Séances terminées en attente de facturation */}
       {seancesEnAttenteFacturation.length > 0 && (
-        <Card className="border-amber-500/35 bg-amber-50/35 dark:bg-amber-950/15 shadow-xs">
+        <Card className={`${TONS.attention.surface} shadow-xs`}>
           <CardHeader className="pb-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="space-y-1">
                 <CardTitle className="text-base flex items-center gap-2 text-foreground">
-                  <Receipt className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                  <Receipt className={`w-5 h-5 ${TONS.attention.text}`} />
                   <span>Séances terminées en attente de facturation</span>
-                  <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30">
+                  <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold border ${TONS.attention.badge}`}>
                     {seancesEnAttenteFacturation.length}
                   </span>
                 </CardTitle>
@@ -906,7 +901,7 @@ export function FacturesPage() {
                       <div className="text-sm font-medium text-foreground truncate">
                         {photographeNom}
                       </div>
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800">
+                      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${TONS.accent.badge}`}>
                         Terminée
                       </div>
                     </div>
@@ -940,7 +935,7 @@ export function FacturesPage() {
       {/* Section 2 : Cartes de synthèse (KPIs) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* KPI Total affiché */}
-        <div className="p-4 rounded-xl border border-primary/25 bg-primary/5 shadow-xs space-y-1.5">
+        <div className={`p-4 rounded-xl border ${TONS.neutre.surface} shadow-xs space-y-1.5`}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-primary">
               Total affiché
@@ -962,13 +957,13 @@ export function FacturesPage() {
         </div>
 
         {/* KPI En attente */}
-        <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/15 shadow-xs space-y-1.5">
+        <div className={`p-4 rounded-xl border ${TONS.attention.surface} shadow-xs space-y-1.5`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+            <span className={`text-xs font-semibold uppercase tracking-wider ${TONS.attention.text} flex items-center gap-1.5`}>
               <Clock className="w-3.5 h-3.5" />
               <span>En attente</span>
             </span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-800">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${TONS.attention.badge}`}>
               {kpis.enAttenteCount}
             </span>
           </div>
@@ -982,13 +977,13 @@ export function FacturesPage() {
         </div>
 
         {/* KPI Payées */}
-        <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/40 dark:bg-emerald-950/15 shadow-xs space-y-1.5">
+        <div className={`p-4 rounded-xl border ${TONS.succes.surface} shadow-xs space-y-1.5`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+            <span className={`text-xs font-semibold uppercase tracking-wider ${TONS.succes.text} flex items-center gap-1.5`}>
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Payées</span>
             </span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${TONS.succes.badge}`}>
               {kpis.payeesCount}
             </span>
           </div>
@@ -1002,13 +997,13 @@ export function FacturesPage() {
         </div>
 
         {/* KPI Annulées */}
-        <div className="p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/40 dark:bg-rose-950/15 shadow-xs space-y-1.5">
+        <div className={`p-4 rounded-xl border ${TONS.danger.surface} shadow-xs space-y-1.5`}>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+            <span className={`text-xs font-semibold uppercase tracking-wider ${TONS.danger.text} flex items-center gap-1.5`}>
               <Ban className="w-3.5 h-3.5" />
               <span>Annulées</span>
             </span>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${TONS.danger.badge}`}>
               {kpis.annuleesCount}
             </span>
           </div>
@@ -1203,7 +1198,7 @@ export function FacturesPage() {
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      isSelected ? "bg-white" : style.dotClass
+                      isSelected ? "bg-primary-foreground" : style.dotClass
                     }`}
                   />
                   <span>{style.label}</span>

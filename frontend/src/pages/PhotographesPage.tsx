@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { TONS } from "@/lib/tons";
 import {
   Loader2,
   Mail,
@@ -50,11 +51,11 @@ const FILTRES: { value: FiltreActif; label: string; actif?: boolean }[] = [
 
 function StatutBadge({ actif }: { actif: boolean }) {
   return actif ? (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TONS.succes.badge}`}>
       Actif
     </span>
   ) : (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border border-border">
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${TONS.neutre.badge}`}>
       Inactif
     </span>
   );
