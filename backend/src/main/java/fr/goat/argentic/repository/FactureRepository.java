@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface FactureRepository extends JpaRepository<Facture, Long> {
@@ -39,4 +40,21 @@ public interface FactureRepository extends JpaRepository<Facture, Long> {
     Optional<Facture> findBySeanceId(Long seanceId);
 
     boolean existsBySeanceId(Long seanceId);
+
+    Optional<Facture> findTopByNumeroStartingWithOrderByNumeroDesc(String prefixe);
+
+    @Query("""
+            SELECT f
+            FROM Facture f
+            JOIN FETCH f.seance
+            WHERE (:statut IS NULL OR f.statutPaiement = :statut)
+              AND (:du IS NULL OR f.dateEmission >= :du)
+              AND (:au IS NULL OR f.dateEmission <= :au)
+            ORDER BY f.dateEmission DESC, f.numero DESC
+            """)
+    List<Facture> getFactures(
+            @Param("statut") StatutPaiement statut,
+            @Param("du") LocalDate du,
+            @Param("au") LocalDate au
+    );
 }
