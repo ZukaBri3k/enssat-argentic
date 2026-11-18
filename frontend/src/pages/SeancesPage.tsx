@@ -2470,7 +2470,7 @@ export function SeancesPage() {
                                 type="button"
                                 variant="outline"
                                 size="xs"
-                                onClick={() => navigate("/factures")}
+                                onClick={() => navigate(facture.id ? `/factures/${facture.id}` : "/factures")}
                                 className="cursor-pointer gap-1 h-8 sm:h-6"
                               >
                                 <ExternalLink className="w-3 h-3" />

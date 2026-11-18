@@ -1,5 +1,8 @@
 package fr.goat.argentic.service;
 
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
+import fr.goat.argentic.dto.FacturePdf;
 import fr.goat.argentic.dto.FactureRequest;
 import fr.goat.argentic.dto.FactureResponse;
 import fr.goat.argentic.dto.PaiementFactureRequest;
@@ -483,5 +486,115 @@ class FactureServiceTest {
         assertThatThrownBy(() -> factureService.annulerFacture(999L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("999");
+    }
+
+    // ==================== Génération PDF (#13) ====================
+
+    @Test
+    @DisplayName("genererFacturePdf génère un PDF valide contenant numéro, date d'émission, coordonnées client, prestation, HT, TVA, TTC et statut")
+    void genererFacturePdf_factureExistante_doitContenirToutesLesDonneesFigees() throws Exception {
+        Facture facture = factureAvecNumero(seanceTerminee, "FAC-2026-0001", LocalDate.of(2026, 11, 11));
+        facture.setId(10L);
+
+        when(factureRepository.findById(10L)).thenReturn(Optional.of(facture));
+
+        FacturePdf res = factureService.genererFacturePdf(10L);
+
+        assertThat(res.numero()).isEqualTo("FAC-2026-0001");
+        assertThat(res.filename()).isEqualTo("FAC-2026-0001.pdf");
+        assertThat(res.content()).isNotEmpty();
+        assertThat(new String(res.content(), 0, 4)).isEqualTo("%PDF");
+
+        String textePdf = extraireTextePdf(res.content());
+        assertThat(textePdf)
+                .contains("FAC-2026-0001")
+                .contains("11/11/2026")
+                .contains("Dupont Marie")
+                .contains("12 rue de Kerampont, 22300 Lannion")
+                .contains("marie.dupont@mail.fr")
+                .contains("Mariage et fêtes")
+                .contains("10/11/2026")
+                .contains("14:00")
+                .contains("120 min")
+                .contains("Lucas Bernard")
+                .contains("250,00")
+                .contains("20,00")
+                .contains("50,00")
+                .contains("300,00")
+                .contains("EN_ATTENTE");
+    }
+
+    @Test
+    @DisplayName("genererFacturePdf utilise uniquement les données figées même si le client, la séance et le photographe ont été modifiés depuis")
+    void genererFacturePdf_apresModificationEntitesLiees_doitUtiliserUniquementDonneesFigees() throws Exception {
+        seanceTerminee.setClient(clientEntreprise);
+        Facture facture = new Facture(
+                seanceTerminee,
+                "FAC-2026-0007",
+                LocalDate.of(2026, 11, 12),
+                new BigDecimal("600.00"),
+                new BigDecimal("20.00"),
+                CoordonneesFacturation.depuis(clientEntreprise),
+                PrestationFacturee.depuis(seanceTerminee)
+        );
+        facture.setId(7L);
+        facture.setStatutPaiement(StatutPaiement.PAYEE);
+        facture.setDatePaiement(LocalDate.of(2026, 11, 15));
+
+        // Modifications ultérieures des entités liées (ne doivent pas impacter le PDF)
+        clientEntreprise.setRaisonSociale("Entreprise Renommée SAS");
+        clientEntreprise.setAdressePostale("999 rue Modifiée, 75000 Paris");
+        clientEntreprise.setEmail("nouveau@entreprise.fr");
+        clientEntreprise.setNumeroSirenTva("FR99999999999");
+        photographe.setNom("Autre Photographe");
+        specialite.setLibelle("Spécialité Modifiée");
+        seanceTerminee.setDureeMinutes(30);
+
+        when(factureRepository.findById(7L)).thenReturn(Optional.of(facture));
+
+        FacturePdf res = factureService.genererFacturePdf(7L);
+        String textePdf = extraireTextePdf(res.content());
+
+        assertThat(textePdf)
+                .contains("FAC-2026-0007")
+                .contains("Atelier Breizh SARL")
+                .contains("15 rue de la Poterie, 22300 Lannion")
+                .contains("contact@atelier-breizh.fr")
+                .contains("FR40123456789")
+                .contains("Mariage et fêtes")
+                .contains("120 min")
+                .contains("Lucas Bernard")
+                .contains("600,00")
+                .contains("120,00")
+                .contains("720,00")
+                .contains("PAYEE")
+                .contains("15/11/2026")
+                .doesNotContain("Entreprise Renommée SAS")
+                .doesNotContain("999 rue Modifiée")
+                .doesNotContain("nouveau@entreprise.fr")
+                .doesNotContain("FR99999999999")
+                .doesNotContain("Autre Photographe")
+                .doesNotContain("Spécialité Modifiée");
+    }
+
+    @Test
+    @DisplayName("genererFacturePdf lève ResourceNotFoundException (404) si la facture est introuvable")
+    void genererFacturePdf_factureInexistante_doitLeverResourceNotFoundException() {
+        when(factureRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> factureService.genererFacturePdf(999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("999");
+    }
+
+    private static String extraireTextePdf(byte[] pdfBytes) throws Exception {
+        try (PdfReader reader = new PdfReader(pdfBytes)) {
+            PdfTextExtractor extractor = new PdfTextExtractor(reader);
+            StringBuilder sb = new StringBuilder();
+            for (int page = 1; page <= reader.getNumberOfPages(); page++) {
+                sb.append(extractor.getTextFromPage(page)).append('\n');
+            }
+            return sb.toString();
+        }
     }
 }
