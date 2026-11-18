@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   apiAnnulerFacture,
+  apiDownloadFacturePdf,
   apiEnregistrerPaiementFacture,
   apiGetFactureById,
   apiGetFactures,
@@ -9,6 +10,7 @@ import {
   type SeanceResponse,
   type StatutPaiement,
 } from "@/lib/api";
+import { useLocation, useNavigate } from "@/lib/router";
 import { PILL_ACTIVE, TONS } from "@/lib/tons";
 import { GenererFactureModal } from "@/components/factures/GenererFactureModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -31,6 +33,7 @@ import {
   Camera,
   CheckCircle2,
   Clock,
+  Download,
   Euro,
   Eye,
   FilePlus2,
@@ -44,7 +47,6 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
-  Sparkles,
   Tag,
   User,
   X,
@@ -342,6 +344,8 @@ function getPresetRange(preset: PeriodPreset): { du: string; au: string } {
 
 export function FacturesPage() {
   const { showApiError, success } = useToast();
+  const { pathname, search } = useLocation();
+  const navigate = useNavigate();
 
   // Filtres (GET /factures)
   const [selectedStatut, setSelectedStatut] = useState<StatutPaiement | "">("");
@@ -355,6 +359,10 @@ export function FacturesPage() {
   const [hasGlobalFacturesSnapshot, setHasGlobalFacturesSnapshot] = useState<boolean>(false);
   const [loadingFactures, setLoadingFactures] = useState<boolean>(true);
   const [facturesError, setFacturesError] = useState<unknown>(null);
+
+  // Téléchargement du PDF (GET /factures/{id}/pdf)
+  const [downloadingFactureId, setDownloadingFactureId] = useState<number | null>(null);
+  const [downloadError, setDownloadError] = useState<unknown>(null);
 
   // Séances terminées (pour repérer celles en attente de facturation)
   const [seancesTerminees, setSeancesTerminees] = useState<SeanceResponse[]>([]);
@@ -642,7 +650,34 @@ export function FacturesPage() {
     [selectedStatut, filterDu, filterAu, facturesError, triggerRefresh]
   );
 
-  // Ouverture et fermeture de la modale de détail (GET /factures/{id})
+  // Téléchargement du PDF authentifié (GET /factures/{id}/pdf)
+  const handleDownloadPdf = useCallback(
+    async (facture: FactureResponse, e?: React.MouseEvent) => {
+      if (e) {
+        e.stopPropagation();
+      }
+      setDownloadingFactureId(facture.id);
+      setDownloadError(null);
+      try {
+        const { filename } = await apiDownloadFacturePdf(facture.id, facture.numero);
+        success(
+          "Facture téléchargée",
+          `La facture ${facture.numero} a été téléchargée avec succès (${filename}).`
+        );
+      } catch (err) {
+        setDownloadError(err);
+        showApiError(
+          err,
+          `Impossible de télécharger le PDF de la facture ${facture.numero}`
+        );
+      } finally {
+        setDownloadingFactureId(null);
+      }
+    },
+    [success, showApiError]
+  );
+
+  // Ouverture et fermeture de la modale / vue de détail (GET /factures/{id})
   const handleOpenDetail = useCallback(
     async (facturePreview: FactureResponse) => {
       activeDetailIdRef.current = facturePreview.id;
@@ -650,8 +685,14 @@ export function FacturesPage() {
       setFactureDetail(facturePreview);
       setLoadingDetail(true);
       setDetailError(null);
+      setDownloadError(null);
       setActionError(null);
       setDatePaiementSaisie(toDateInputString(new Date()));
+
+      // Synchroniser avec l'URL de détail
+      if (pathname !== `/factures/${facturePreview.id}`) {
+        navigate(`/factures/${facturePreview.id}`);
+      }
 
       try {
         const fullDetail = await apiGetFactureById(facturePreview.id);
@@ -672,7 +713,7 @@ export function FacturesPage() {
         }
       }
     },
-    [showApiError]
+    [navigate, pathname, showApiError]
   );
 
   const handleCloseDetail = useCallback(() => {
@@ -680,10 +721,81 @@ export function FacturesPage() {
     setSelectedFactureId(null);
     setFactureDetail(null);
     setDetailError(null);
+    setDownloadError(null);
     setLoadingDetail(false);
     setActionError(null);
     setConfirmAnnulationOpen(false);
-  }, []);
+    if (pathname.startsWith("/factures/") || search.includes("id=")) {
+      navigate("/factures", { replace: true });
+    }
+  }, [navigate, pathname, search]);
+
+  // Synchronisation avec l'URL (ex: /factures/42 ou /factures?id=42)
+  useEffect(() => {
+    let targetId: number | null = null;
+    const match = pathname.match(/^\/factures\/(\d+)$/);
+    if (match) {
+      targetId = Number(match[1]);
+    } else {
+      const sp = new URLSearchParams(search);
+      const queryId = sp.get("id");
+      if (queryId && !Number.isNaN(Number(queryId))) {
+        targetId = Number(queryId);
+      }
+    }
+
+    if (targetId === null) {
+      if (
+        activeDetailIdRef.current !== null &&
+        pathname === "/factures" &&
+        !search.includes("id=")
+      ) {
+        activeDetailIdRef.current = null;
+        setSelectedFactureId(null);
+        setFactureDetail(null);
+        setDetailError(null);
+        setDownloadError(null);
+        setLoadingDetail(false);
+      }
+      return;
+    }
+
+    if (activeDetailIdRef.current === targetId) return;
+    activeDetailIdRef.current = targetId;
+
+    let cancelled = false;
+
+    async function fetchDetail(id: number) {
+      setSelectedFactureId(id);
+      setLoadingDetail(true);
+      setDetailError(null);
+      setDownloadError(null);
+      setActionError(null);
+      setDatePaiementSaisie(toDateInputString(new Date()));
+
+      try {
+        const fullDetail = await apiGetFactureById(id);
+        if (!cancelled && activeDetailIdRef.current === id) {
+          setFactureDetail(fullDetail);
+        }
+      } catch (err) {
+        if (!cancelled && activeDetailIdRef.current === id) {
+          setDetailError(err);
+          showApiError(err, "Impossible de charger la facture demandée");
+        }
+      } finally {
+        if (!cancelled && activeDetailIdRef.current === id) {
+          setLoadingDetail(false);
+        }
+      }
+    }
+
+    void fetchDetail(targetId);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, search, showApiError]);
 
   useEffect(() => {
     if (selectedFactureId === null) return;
@@ -781,7 +893,6 @@ export function FacturesPage() {
         <div className="flex flex-wrap items-center gap-2.5">
           {seancesEnAttenteFacturation.length > 0 && (
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${TONS.attention.badge}`}>
-              <Sparkles className="w-3.5 h-3.5" />
               <span>
                 {seancesEnAttenteFacturation.length} séance
                 {seancesEnAttenteFacturation.length > 1 ? "s" : ""} à facturer
@@ -1391,16 +1502,36 @@ export function FacturesPage() {
                           className="py-3 px-4 text-right whitespace-nowrap"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            onClick={() => void handleOpenDetail(facture)}
-                            className="cursor-pointer gap-1 h-9 sm:h-6 px-3 sm:px-2"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Détails</span>
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              onClick={(e) => void handleDownloadPdf(facture, e)}
+                              disabled={downloadingFactureId === facture.id}
+                              className="cursor-pointer gap-1 h-9 sm:h-6 px-2.5 sm:px-2 text-muted-foreground hover:text-foreground"
+                              title={`Télécharger le PDF de la facture ${facture.numero}`}
+                              aria-label={`Télécharger le PDF de la facture ${facture.numero}`}
+                            >
+                              {downloadingFactureId === facture.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                              ) : (
+                                <Download className="w-3.5 h-3.5" />
+                              )}
+                              <span className="hidden sm:inline">PDF</span>
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              onClick={() => void handleOpenDetail(facture)}
+                              className="cursor-pointer gap-1 h-9 sm:h-6 px-3 sm:px-2"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Détails</span>
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1474,14 +1605,36 @@ export function FacturesPage() {
                     </CardDescription>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleCloseDetail}
-                    className="cursor-pointer shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
-                    aria-label="Fermer le détail de la facture"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {factureDetail && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleDownloadPdf(factureDetail)}
+                        disabled={downloadingFactureId === factureDetail.id}
+                        className="cursor-pointer gap-1.5 h-9"
+                        title="Télécharger la facture au format PDF"
+                      >
+                        {downloadingFactureId === factureDetail.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                        <span className="hidden sm:inline">Télécharger le PDF</span>
+                        <span className="sm:hidden">PDF</span>
+                      </Button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleCloseDetail}
+                      className="cursor-pointer shrink-0 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                      aria-label="Fermer le détail de la facture"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </CardHeader>
 
@@ -1496,6 +1649,11 @@ export function FacturesPage() {
                 <ErrorAlert
                   error={detailError}
                   onDismiss={() => setDetailError(null)}
+                />
+
+                <ErrorAlert
+                  error={downloadError}
+                  onDismiss={() => setDownloadError(null)}
                 />
 
                 {factureDetail &&
@@ -1739,14 +1897,32 @@ export function FacturesPage() {
                     <span>Coordonnées client et prestation figées à l'émission</span>
                   </span>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCloseDetail}
-                    className="cursor-pointer h-9 w-full sm:w-auto"
-                  >
-                    Fermer
-                  </Button>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    {factureDetail && (
+                      <Button
+                        type="button"
+                        onClick={() => void handleDownloadPdf(factureDetail)}
+                        disabled={downloadingFactureId === factureDetail.id}
+                        className="cursor-pointer gap-2 h-9 w-full sm:w-auto"
+                      >
+                        {downloadingFactureId === factureDetail.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                        <span>Télécharger le PDF</span>
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCloseDetail}
+                      className="cursor-pointer h-9 w-full sm:w-auto"
+                    >
+                      Fermer
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
