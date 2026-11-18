@@ -6,7 +6,6 @@ import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { TONS } from "@/lib/tons";
 import {
   Card,
   CardHeader,
@@ -22,7 +21,6 @@ import {
   Eye,
   EyeOff,
   Loader2,
-  Sparkles,
 } from "lucide-react";
 
 export function LoginPage() {
@@ -141,8 +139,7 @@ export function LoginPage() {
 
                 {/* Connexion rapide : préremplit les identifiants des comptes de démonstration */}
                 <div className="pt-2">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-                    <Sparkles className={`w-3.5 h-3.5 ${TONS.attention.text}`} />
+                  <div className="text-xs text-muted-foreground mb-2">
                     <span>Connexion rapide :</span>
                   </div>
                   <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-2">
