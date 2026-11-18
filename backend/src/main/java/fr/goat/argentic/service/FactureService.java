@@ -188,7 +188,6 @@ public class FactureService {
         Font fontValeur = FontFactory.getFont(FontFactory.HELVETICA, 10, new Color(35, 32, 30));
         Font fontTotal = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 13, new Color(35, 32, 30));
 
-        // 1. En-tête Studio & Numéro de facture
         Paragraph marque = new Paragraph("STUDIO ARGENTIC", fontMarque);
         marque.setSpacingAfter(4f);
         document.add(marque);
@@ -197,7 +196,6 @@ public class FactureService {
         titre.setSpacingAfter(14f);
         document.add(titre);
 
-        // 2. Métadonnées : date d'émission & statut de paiement
         String dateEmissionFr = facture.getDateEmission().format(DATE_FR);
         Paragraph emissionPara = new Paragraph();
         emissionPara.add(new Phrase("Date d'émission : ", fontLabel));
@@ -211,7 +209,6 @@ public class FactureService {
         statutPara.setSpacingAfter(18f);
         document.add(statutPara);
 
-        // 3. Coordonnées du client (copie figée)
         CoordonneesFacturation client = facture.getCoordonneesClient();
         Paragraph titreClient = new Paragraph("COORDONNÉES DU CLIENT", fontSection);
         titreClient.setSpacingAfter(6f);
@@ -227,7 +224,6 @@ public class FactureService {
         }
         document.add(new Paragraph(" "));
 
-        // 4. Détail de la prestation (copie figée)
         PrestationFacturee prestation = facture.getPrestation();
         Paragraph titrePrestation = new Paragraph("DÉTAIL DE LA PRESTATION", fontSection);
         titrePrestation.setSpacingAfter(6f);
@@ -244,7 +240,6 @@ public class FactureService {
         }
         document.add(new Paragraph(" "));
 
-        // 5. Récapitulatif financier (HT, TVA, TTC)
         Paragraph titreMontants = new Paragraph("RÉCAPITULATIF FINANCIER", fontSection);
         titreMontants.setSpacingAfter(8f);
         document.add(titreMontants);
