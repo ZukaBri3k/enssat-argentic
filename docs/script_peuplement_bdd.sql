@@ -8,8 +8,9 @@
 -- le jeu reste cohérent (séances passées / à venir) quel que soit le jour.
 --
 -- Comptes de connexion :
---   secretaire@argentic.fr   / secretaire
---   gestionnaire@argentic.fr / gestionnaire
+--   secretaire@argentic.fr     / secretaire
+--   gestionnaire@argentic.fr   / gestionnaire
+--   *.@argentic.fr (photographes) / photographe
 
 SET NAMES utf8mb4;
 
@@ -18,7 +19,13 @@ START TRANSACTION;
 -- Mots de passe encodés en BCrypt (BCryptPasswordEncoder, comme l'application)
 INSERT INTO utilisateur (id, email, mot_de_passe, role) VALUES
     (1, 'secretaire@argentic.fr', '$2a$10$r6UEB/i7RYENq4gpESKXi.qXMn3VAwYpojXFfw3r3FaxifwYHxRG2', 'SECRETAIRE'),
-    (2, 'gestionnaire@argentic.fr', '$2a$10$p3QQ1RH1AJYYvQnK6.lqD.A.xIHSVkLNibXDw41RRhQ4Hssnh2zAa', 'GESTIONNAIRE');
+    (2, 'gestionnaire@argentic.fr', '$2a$10$p3QQ1RH1AJYYvQnK6.lqD.A.xIHSVkLNibXDw41RRhQ4Hssnh2zAa', 'GESTIONNAIRE'),
+    (3, 'camille.martin@argentic.fr', '$2a$10$uUIbN72ep2eDFW/1aouBTeEo0W59rOPlNOFqiWbj9yqaQYJewKQ8y', 'PHOTOGRAPHE'),
+    (4, 'lucas.bernard@argentic.fr', '$2a$10$uUIbN72ep2eDFW/1aouBTeEo0W59rOPlNOFqiWbj9yqaQYJewKQ8y', 'PHOTOGRAPHE'),
+    (5, 'ines.petit@argentic.fr', '$2a$10$uUIbN72ep2eDFW/1aouBTeEo0W59rOPlNOFqiWbj9yqaQYJewKQ8y', 'PHOTOGRAPHE'),
+    (6, 'hugo.durand@argentic.fr', '$2a$10$uUIbN72ep2eDFW/1aouBTeEo0W59rOPlNOFqiWbj9yqaQYJewKQ8y', 'PHOTOGRAPHE'),
+    (7, 'lea.moreau@argentic.fr', '$2a$10$uUIbN72ep2eDFW/1aouBTeEo0W59rOPlNOFqiWbj9yqaQYJewKQ8y', 'PHOTOGRAPHE'),
+    (8, 'theo.laurent@argentic.fr', '$2a$10$uUIbN72ep2eDFW/1aouBTeEo0W59rOPlNOFqiWbj9yqaQYJewKQ8y', 'PHOTOGRAPHE');
 
 INSERT INTO specialite (id, libelle) VALUES
     (1, 'Reportage'),

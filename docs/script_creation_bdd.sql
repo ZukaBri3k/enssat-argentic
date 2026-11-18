@@ -70,7 +70,7 @@
         id bigint not null auto_increment,
         email varchar(254) not null,
         mot_de_passe varchar(255) not null,
-        role enum ('GESTIONNAIRE','SECRETAIRE') not null,
+        role enum ('GESTIONNAIRE','PHOTOGRAPHE','SECRETAIRE') not null,
         primary key (id)
     ) engine=InnoDB;
 
