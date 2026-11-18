@@ -48,17 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests unitaires des règles métier de facturation (section « Facturation » de docs/DECISIONS.md).
- *
- * <p>Ce fichier est structuré en deux parties :
- * <ul>
- *   <li><strong>Partie 1 (active)</strong> : vérifie immédiatement sur le domaine et les repositories
- *   mockés l'ensemble des règles métier (éligibilité TERMINEE, unicité 1-1 même si ANNULEE,
- *   numérotation FAC-YYYY-NNNN, copie figée client/prestation, statut initial et calcul TTC/arrondi).</li>
- *   <li><strong>Partie 2 (prête à décommenter)</strong> : suite complète de tests Mockito ciblant
- *   {@code FactureService} ({@code genererFacture}, {@code getFactures}, {@code getFactureById})
- *   dès l'implémentation de la couche service et des DTOs {@code FactureRequest}/{@code FactureResponse}.</li>
- * </ul>
+ * Tests unitaires de {@link FactureService} (règles métier de facturation, docs/DECISIONS.md).
  */
 @ExtendWith(MockitoExtension.class)
 class FactureServiceTest {
@@ -117,264 +107,39 @@ class FactureServiceTest {
         seanceTerminee.setStatut(StatutSeance.TERMINEE);
     }
 
-    // ==================== PARTIE 1 : Tests unitaires actifs des règles métier ====================
-
-    @ParameterizedTest(name = "statut={0}")
-    @EnumSource(StatutSeance.class)
-    @DisplayName("1. Seule une séance TERMINEE est facturable (PLANIFIEE, CONFIRMEE et ANNULEE refusées)")
-    void eligibiliteSeance_seuleSeanceTermineeEstFacturable(StatutSeance statut) {
-        seanceTerminee.setStatut(statut);
-        when(seanceRepository.findById(1L)).thenReturn(Optional.of(seanceTerminee));
-
-        Seance seance = seanceRepository.findById(1L).orElseThrow();
-
-        if (statut == StatutSeance.TERMINEE) {
-            assertThat(estFacturable(seance)).isTrue();
-            verifierEligibiliteSeance(seance);
-        } else {
-            assertThat(estFacturable(seance)).isFalse();
-            assertThatThrownBy(() -> verifierEligibiliteSeance(seance))
-                    .isInstanceOf(RegleMetierException.class)
-                    .hasMessageContaining("TERMINEE");
-        }
-
-        verify(seanceRepository).findById(1L);
-    }
+    // ==================== Génération, consultation et copie figée ====================
 
     @Test
-    @DisplayName("2. Unicité 1-1 strict : une séance déjà facturée est détectée même si sa facture est ANNULEE")
-    void uniciteFacture_seanceDejaFacturee_doitEtreDetecteeParRepository() {
-        Facture factureAnnulee = new Facture(
-                seanceTerminee,
-                "FAC-2026-0005",
-                LocalDate.of(2026, 11, 11),
-                new BigDecimal("250.00"),
-                TVA_DEFAUT,
-                CoordonneesFacturation.depuis(clientParticulier),
-                PrestationFacturee.depuis(seanceTerminee)
-        );
-        factureAnnulee.setId(5L);
-        factureAnnulee.setStatutPaiement(StatutPaiement.ANNULEE);
-
-        when(factureRepository.existsBySeanceId(1L)).thenReturn(true);
-        when(factureRepository.findBySeanceId(1L)).thenReturn(Optional.of(factureAnnulee));
-        when(factureRepository.existsBySeanceId(2L)).thenReturn(false);
-
-        assertThat(factureRepository.findBySeanceId(1L))
-                .isPresent()
-                .get()
-                .extracting(Facture::getStatutPaiement)
-                .isEqualTo(StatutPaiement.ANNULEE);
-        assertThat(factureRepository.existsBySeanceId(1L)).isTrue();
-        assertThatThrownBy(() -> verifierUniciteFacture(1L))
-                .isInstanceOf(RegleMetierException.class)
-                .hasMessageContaining("déjà");
-
-        assertThat(factureRepository.existsBySeanceId(2L)).isFalse();
-        verifierUniciteFacture(2L);
-
-        verify(factureRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("3. Numérotation : la première facture d'une année génère FAC-{annee}-0001")
-    void numerotationFacture_premiereFactureDeLAnnee_doitGenerer0001() {
-        when(factureRepository.findAll()).thenReturn(List.of());
-
-        String numero = genererProchainNumero(2026, factureRepository.findAll());
-
-        assertThat(numero).isEqualTo("FAC-2026-0001");
-        assertThat(numero).matches("^FAC-\\d{4}-\\d{4}$");
-        verify(factureRepository).findAll();
-    }
-
-    @Test
-    @DisplayName("4. Numérotation : incrément max + 1 par année et remise à 0001 au changement d'année")
-    void numerotationFacture_incrementationMaxPlusUnParAnnee_doitSuivreLaSequence() {
-        Facture facture2025 = factureAvecNumero(seanceTerminee, "FAC-2025-0099", LocalDate.of(2025, 12, 31));
-        Facture facture2026a = factureAvecNumero(seanceTerminee, "FAC-2026-0001", LocalDate.of(2026, 1, 10));
-        Facture facture2026b = factureAvecNumero(seanceTerminee, "FAC-2026-0014", LocalDate.of(2026, 11, 5));
-        facture2026b.setStatutPaiement(StatutPaiement.ANNULEE);
-
-        when(factureRepository.findAll()).thenReturn(List.of(facture2025, facture2026a, facture2026b));
-
-        List<Facture> existantes = factureRepository.findAll();
-        String prochain2026 = genererProchainNumero(2026, existantes);
-        String premier2027 = genererProchainNumero(2027, existantes);
-
-        assertThat(prochain2026).isEqualTo("FAC-2026-0015");
-        assertThat(premier2027).isEqualTo("FAC-2027-0001");
-    }
-
-    @Test
-    @DisplayName("5. Copie figée ClientParticulier : fige identité, adresse et email sans SIREN/TVA")
-    void copieFigeeClientParticulier_doitFigerIdentiteAdresseEmailSansSiren() {
-        CoordonneesFacturation coordonnees = CoordonneesFacturation.depuis(clientParticulier);
-        Facture facture = new Facture(
-                seanceTerminee,
-                "FAC-2026-0001",
-                LocalDate.of(2026, 11, 11),
-                new BigDecimal("250.00"),
-                TVA_DEFAUT,
-                coordonnees,
-                PrestationFacturee.depuis(seanceTerminee)
-        );
-
-        // Modification ultérieure du client : la copie figée sur la facture reste inchangée
-        clientParticulier.setNom("Martin");
-        clientParticulier.setPrenom("Claire");
-        clientParticulier.setEmail("claire.martin@mail.fr");
-        clientParticulier.setAdressePostale("99 avenue de Bretagne, 35000 Rennes");
-
-        assertThat(facture.getCoordonneesClient().identite()).isEqualTo("Dupont Marie");
-        assertThat(facture.getCoordonneesClient().adressePostale()).isEqualTo("12 rue de Kerampont, 22300 Lannion");
-        assertThat(facture.getCoordonneesClient().email()).isEqualTo("marie.dupont@mail.fr");
-        assertThat(facture.getCoordonneesClient().numeroSirenTva()).isNull();
-    }
-
-    @Test
-    @DisplayName("6. Copie figée ClientEntreprise : fige raison sociale, adresse, email et SIREN/TVA")
-    void copieFigeeClientEntreprise_doitFigerRaisonSocialeAdresseEmailEtSirenTva() {
+    @DisplayName("genererFacture pour un ClientEntreprise fige raison sociale, adresse, email et SIREN/TVA et arrondit le TTC HALF_UP")
+    void genererFacture_clientEntrepriseEtArrondiHalfUp_doitFigerCoordonneesEtCalculerTtc() {
         seanceTerminee.setClient(clientEntreprise);
-        CoordonneesFacturation coordonnees = CoordonneesFacturation.depuis(clientEntreprise);
-        Facture facture = new Facture(
-                seanceTerminee,
-                "FAC-2026-0002",
-                LocalDate.of(2026, 11, 11),
-                new BigDecimal("600.00"),
-                TVA_DEFAUT,
-                coordonnees,
-                PrestationFacturee.depuis(seanceTerminee)
-        );
+        int anneeCourante = LocalDate.now().getYear();
+        FactureRequest request = new FactureRequest(new BigDecimal("99.99"), new BigDecimal("20.00"));
 
-        // Modification ultérieure de l'entreprise : la copie figée reste inchangée
-        clientEntreprise.setRaisonSociale("Nouvelle Raison SAS");
-        clientEntreprise.setAdressePostale("1 avenue Autre, 29000 Quimper");
-        clientEntreprise.setEmail("facturation@nouvelle-raison.fr");
-        clientEntreprise.setNumeroSirenTva("FR00000000000");
-
-        assertThat(facture.getCoordonneesClient().identite()).isEqualTo("Atelier Breizh SARL");
-        assertThat(facture.getCoordonneesClient().adressePostale()).isEqualTo("15 rue de la Poterie, 22300 Lannion");
-        assertThat(facture.getCoordonneesClient().email()).isEqualTo("contact@atelier-breizh.fr");
-        assertThat(facture.getCoordonneesClient().numeroSirenTva()).isEqualTo("FR40123456789");
-    }
-
-    @Test
-    @DisplayName("7. Copie figée Prestation : fige date, heure, durée, spécialité et nom du photographe")
-    void copieFigeePrestation_doitFigerDateHeureDureeSpecialiteEtNomPhotographe() {
-        PrestationFacturee prestation = PrestationFacturee.depuis(seanceTerminee);
-        Facture facture = new Facture(
-                seanceTerminee,
-                "FAC-2026-0003",
-                LocalDate.of(2026, 11, 11),
-                new BigDecimal("450.00"),
-                TVA_DEFAUT,
-                CoordonneesFacturation.depuis(clientParticulier),
-                prestation
-        );
-
-        // Modification ultérieure du photographe, de la spécialité et de la séance
-        photographe.setNom("Photographe Modifié");
-        specialite.setLibelle("Reportage");
-        seanceTerminee.setDate(LocalDate.of(2027, 1, 15));
-        seanceTerminee.setHeureDebut(LocalTime.of(9, 30));
-        seanceTerminee.setDureeMinutes(60);
-
-        assertThat(facture.getPrestation().date()).isEqualTo(LocalDate.of(2026, 11, 10));
-        assertThat(facture.getPrestation().heureDebut()).isEqualTo(LocalTime.of(14, 0));
-        assertThat(facture.getPrestation().dureeMinutes()).isEqualTo(120);
-        assertThat(facture.getPrestation().typeSeance()).isEqualTo("Mariage et fêtes");
-        assertThat(facture.getPrestation().nomPhotographe()).isEqualTo("Lucas Bernard");
-    }
-
-    @Test
-    @DisplayName("8. État initial : statut EN_ATTENTE, datePaiement null, dateEmission aujourd'hui et TTC 20%")
-    void factureInitiale_doitEtreEnAttenteAvecDateEmissionAujourdhuiEtCalculerTtcParDefaut20() {
-        LocalDate aujourdhui = LocalDate.now();
-        Facture facture = new Facture(
-                seanceTerminee,
-                "FAC-" + aujourdhui.getYear() + "-0001",
-                aujourdhui,
-                new BigDecimal("250.00"),
-                TVA_DEFAUT,
-                CoordonneesFacturation.depuis(clientParticulier),
-                PrestationFacturee.depuis(seanceTerminee)
-        );
-
+        when(seanceRepository.getSeanceById(1L)).thenReturn(Optional.of(seanceTerminee));
+        when(factureRepository.existsBySeanceId(1L)).thenReturn(false);
+        when(factureRepository.findTopByNumeroStartingWithOrderByNumeroDesc("FAC-" + anneeCourante + "-"))
+                .thenReturn(Optional.empty());
         when(factureRepository.save(any(Facture.class))).thenAnswer(inv -> {
-            Facture enregistree = inv.getArgument(0);
-            enregistree.setId(100L);
-            return enregistree;
+            Facture facture = inv.getArgument(0);
+            facture.setId(41L);
+            return facture;
         });
 
-        Facture sauvegardee = factureRepository.save(facture);
+        FactureResponse res = factureService.genererFacture(1L, request);
 
-        assertThat(sauvegardee.getId()).isEqualTo(100L);
-        assertThat(sauvegardee.getStatutPaiement()).isEqualTo(StatutPaiement.EN_ATTENTE);
-        assertThat(sauvegardee.getDatePaiement()).isNull();
-        assertThat(sauvegardee.getDateEmission()).isEqualTo(aujourdhui);
-        assertThat(sauvegardee.getMontantHt()).isEqualByComparingTo("250.00");
-        assertThat(sauvegardee.getTauxTva()).isEqualByComparingTo("20.00");
-        assertThat(sauvegardee.getMontantTtc()).isEqualByComparingTo("300.00");
-    }
+        // Modification ultérieure du client et du photographe : la copie figée reste inchangée
+        clientEntreprise.setRaisonSociale("Nouvelle Raison SAS");
+        clientEntreprise.setNumeroSirenTva("FR00000000000");
+        photographe.setNom("Photographe Modifié");
 
-    @Test
-    @DisplayName("9. Calcul TTC : taux personnalisé (5,50%) et arrondi HALF_UP à 2 décimales (99,99 HT -> 119,99 TTC)")
-    void calculTtc_avecTauxTvaPersonnaliseEtArrondi_doitCalculerMontantTtcExact() {
-        Facture tvaReduite = new Facture(
-                seanceTerminee,
-                "FAC-2026-0010",
-                LocalDate.of(2026, 11, 11),
-                new BigDecimal("100.00"),
-                new BigDecimal("5.50"),
-                CoordonneesFacturation.depuis(clientParticulier),
-                PrestationFacturee.depuis(seanceTerminee)
-        );
-
-        Facture tvaArrondiHalfUp = new Facture(
-                seanceTerminee,
-                "FAC-2026-0011",
-                LocalDate.of(2026, 11, 11),
-                new BigDecimal("99.99"),
-                new BigDecimal("20.00"),
-                CoordonneesFacturation.depuis(clientParticulier),
-                PrestationFacturee.depuis(seanceTerminee)
-        );
-
-        assertThat(tvaReduite.getMontantTtc()).isEqualByComparingTo("105.50");
-        assertThat(tvaReduite.getMontantTtc().scale()).isEqualTo(2);
-
-        // 99.99 * 1.20 = 119.988 -> arrondi RoundingMode.HALF_UP à 119.99
-        assertThat(tvaArrondiHalfUp.getMontantTtc()).isEqualByComparingTo("119.99");
-        assertThat(tvaArrondiHalfUp.getMontantTtc().scale()).isEqualTo(2);
-    }
-
-    private static boolean estFacturable(Seance seance) {
-        return seance.getStatut() == StatutSeance.TERMINEE;
-    }
-
-    private static void verifierEligibiliteSeance(Seance seance) {
-        if (!estFacturable(seance)) {
-            throw new RegleMetierException("Impossible de facturer une séance au statut " + seance.getStatut()
-                    + " : seule une séance TERMINEE peut être facturée.");
-        }
-    }
-
-    private void verifierUniciteFacture(Long seanceId) {
-        if (factureRepository.existsBySeanceId(seanceId)) {
-            throw new RegleMetierException("Une facture existe déjà pour la séance #" + seanceId);
-        }
-    }
-
-    private static String genererProchainNumero(int annee, List<Facture> facturesExistantes) {
-        String prefixe = "FAC-" + annee + "-";
-        int maxSequence = facturesExistantes.stream()
-                .map(Facture::getNumero)
-                .filter(numero -> numero != null && numero.startsWith(prefixe))
-                .mapToInt(numero -> Integer.parseInt(numero.substring(prefixe.length())))
-                .max()
-                .orElse(0);
-        return "%s%04d".formatted(prefixe, maxSequence + 1);
+        assertThat(res.coordonneesClient().identite()).isEqualTo("Atelier Breizh SARL");
+        assertThat(res.coordonneesClient().adressePostale()).isEqualTo("15 rue de la Poterie, 22300 Lannion");
+        assertThat(res.coordonneesClient().email()).isEqualTo("contact@atelier-breizh.fr");
+        assertThat(res.coordonneesClient().numeroSirenTva()).isEqualTo("FR40123456789");
+        assertThat(res.prestation().nomPhotographe()).isEqualTo("Lucas Bernard");
+        // 99.99 * 1.20 = 119.988 -> arrondi HALF_UP à 119.99
+        assertThat(res.montantTtc()).isEqualByComparingTo("119.99");
     }
 
     private Facture factureAvecNumero(Seance seance, String numero, LocalDate dateEmission) {
