@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { hasRequiredRole } from "@/components/shared/ProtectedRoute";
 import { NavLink, useNavigate } from "@/lib/router";
 import { useToast } from "@/components/shared/ToastProvider";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
-import { ROLE_LABELS } from "@/lib/api";
+import { ROLE_LABELS, type Role } from "@/lib/api";
 import { TONS } from "@/lib/tons";
 import {
   Camera,
@@ -23,8 +24,9 @@ import {
 interface NavItem {
   to: string;
   label: string;
+  photographeLabel?: string;
   icon: React.ReactNode;
-  gestionnaireOnly?: boolean;
+  requiredRole?: Role;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -32,27 +34,31 @@ const NAV_ITEMS: NavItem[] = [
     to: "/photographes",
     label: "Photographes",
     icon: <UserSquare2 className="w-4 h-4" />,
+    requiredRole: "SECRETAIRE",
   },
   {
     to: "/clients",
     label: "Clients",
     icon: <Users className="w-4 h-4" />,
+    requiredRole: "SECRETAIRE",
   },
   {
     to: "/seances",
     label: "Séances / Planning",
+    photographeLabel: "Mon planning",
     icon: <Calendar className="w-4 h-4" />,
   },
   {
     to: "/factures",
     label: "Factures",
     icon: <FileText className="w-4 h-4" />,
+    requiredRole: "SECRETAIRE",
   },
   {
     to: "/statistiques",
     label: "Statistiques",
     icon: <BarChart3 className="w-4 h-4" />,
-    gestionnaireOnly: true,
+    requiredRole: "GESTIONNAIRE",
   },
 ];
 
@@ -73,9 +79,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [menuOpen]);
 
   const isGestionnaire = user?.role === "GESTIONNAIRE";
+  const isPhotographe = user?.role === "PHOTOGRAPHE";
 
   const visibleNavItems = NAV_ITEMS.filter(
-    (item) => !item.gestionnaireOnly || isGestionnaire
+    (item) => !item.requiredRole || (user ? hasRequiredRole(user.role, item.requiredRole) : false)
   );
 
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
@@ -88,10 +95,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const roleBadge = user && (
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-        isGestionnaire ? TONS.accent.badge : TONS.info.badge
+        isGestionnaire ? TONS.accent.badge : isPhotographe ? TONS.succes.badge : TONS.info.badge
       }`}
     >
-      {isGestionnaire ? <ShieldCheck className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
+      {isGestionnaire ? (
+        <ShieldCheck className="w-3 h-3" />
+      ) : isPhotographe ? (
+        <Camera className="w-3 h-3" />
+      ) : (
+        <UserCheck className="w-3 h-3" />
+      )}
       {ROLE_LABELS[user.role]}
     </span>
   );
@@ -132,7 +145,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   className={(state) => `${navLinkClassName(state)} py-2`}
                 >
                   {item.icon}
-                  <span>{item.label}</span>
+                  <span>{isPhotographe && item.photographeLabel ? item.photographeLabel : item.label}</span>
                 </NavLink>
               ))}
             </nav>
@@ -189,7 +202,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   className={(state) => `${navLinkClassName(state)} py-3`}
                 >
                   {item.icon}
-                  <span>{item.label}</span>
+                  <span>{isPhotographe && item.photographeLabel ? item.photographeLabel : item.label}</span>
                 </NavLink>
               ))}
             </nav>

@@ -24,6 +24,7 @@ import {
   type TypeClient,
 } from "@/lib/api";
 import { useNavigate } from "@/lib/router";
+import { useAuth } from "@/context/AuthContext";
 import { PILL_ACTIVE, TONS } from "@/lib/tons";
 import { GenererFactureModal } from "@/components/factures/GenererFactureModal";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -475,6 +476,8 @@ function isDebutSeancePasse(dateStr: string, heureDebut: string): boolean {
 }
 
 export function SeancesPage() {
+  const { user } = useAuth();
+  const isPhotographe = user?.role === "PHOTOGRAPHE";
   const { success, showApiError } = useToast();
   const navigate = useNavigate();
 
@@ -566,6 +569,7 @@ export function SeancesPage() {
 
   // Chargement des référentiels (photographes, clients, spécialités) pour les filtres et le formulaire
   useEffect(() => {
+    if (isPhotographe) return;
     let mounted = true;
     async function loadFilterReferentials() {
       const [pRes, cRes, sRes] = await Promise.allSettled([
@@ -588,7 +592,7 @@ export function SeancesPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [isPhotographe]);
 
   // Compteur d'actualisation manuelle
   const [refreshTick, setRefreshTick] = useState<number>(0);
@@ -609,11 +613,11 @@ export function SeancesPage() {
           apiGetSeances({
             du: effectivePeriod.du,
             au: effectivePeriod.au,
-            photographeId: selectedPhotographeId || undefined,
+            photographeId: isPhotographe ? undefined : selectedPhotographeId || undefined,
             clientId: selectedClientId || undefined,
             statut: selectedStatut || undefined,
           }),
-          apiGetFactures(),
+          isPhotographe ? Promise.resolve(null) : apiGetFactures(),
         ]);
         if (!mounted) return;
         if (facturesRes.status === "fulfilled" && Array.isArray(facturesRes.value)) {
@@ -642,6 +646,7 @@ export function SeancesPage() {
     selectedClientId,
     selectedStatut,
     refreshTick,
+    isPhotographe,
     showApiError,
   ]);
 
@@ -1245,11 +1250,12 @@ export function SeancesPage() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
             <Calendar className="w-6 h-6 text-primary shrink-0" />
-            <span>Planning & Séances photo</span>
+            <span>{isPhotographe ? "Mon planning & mes séances" : "Planning & Séances photo"}</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Consultez le planning par semaine ou par jour, parcourez la liste des séances et
-            inspectez le détail complet de chaque prestation.
+            {isPhotographe
+              ? "Consultez votre calendrier personnel par semaine, par jour ou en liste, ainsi que le détail de vos séances."
+              : "Consultez le planning par semaine ou par jour, parcourez la liste des séances et inspectez le détail complet de chaque prestation."}
           </p>
         </div>
 
@@ -1319,15 +1325,17 @@ export function SeancesPage() {
               <span>Actualiser</span>
             </Button>
 
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => handleOpenCreateForm()}
-              className="cursor-pointer gap-1.5 h-9 sm:h-7"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nouvelle séance</span>
-            </Button>
+            {!isPhotographe && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => handleOpenCreateForm()}
+                className="cursor-pointer gap-1.5 h-9 sm:h-7"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nouvelle séance</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -1337,29 +1345,31 @@ export function SeancesPage() {
         <CardContent className="pt-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             {/* Filtre par Photographe */}
-            <div className="space-y-1.5">
-              <Label
-                htmlFor="filter-photographe"
-                className="flex items-center gap-1.5 text-xs"
-              >
-                <Camera className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>Photographe</span>
-              </Label>
-              <select
-                id="filter-photographe"
-                value={selectedPhotographeId}
-                onChange={(e) => setSelectedPhotographeId(e.target.value)}
-                className="h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-              >
-                <option value="">Tous les photographes</option>
-                {photographeOptions.map((p) => (
-                  <option key={p.id} value={String(p.id)}>
-                    {p.nom}
-                    {p.actif === false ? " (inactif)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!isPhotographe && (
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="filter-photographe"
+                  className="flex items-center gap-1.5 text-xs"
+                >
+                  <Camera className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>Photographe</span>
+                </Label>
+                <select
+                  id="filter-photographe"
+                  value={selectedPhotographeId}
+                  onChange={(e) => setSelectedPhotographeId(e.target.value)}
+                  className="h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                >
+                  <option value="">Tous les photographes</option>
+                  {photographeOptions.map((p) => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.nom}
+                      {p.actif === false ? " (inactif)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Filtre par Statut (menu déroulant) */}
             <div className="space-y-1.5">
@@ -2108,7 +2118,7 @@ export function SeancesPage() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                              {seance.statut === "TERMINEE" && !facture && (
+                              {!isPhotographe && seance.statut === "TERMINEE" && !facture && (
                                 <Button
                                   type="button"
                                   size="xs"
@@ -2120,7 +2130,7 @@ export function SeancesPage() {
                                 </Button>
                               )}
 
-                              {(TRANSITIONS_POSSIBLES[seance.statut] ?? []).map(
+                              {!isPhotographe && (TRANSITIONS_POSSIBLES[seance.statut] ?? []).map(
                                 (targetStatut) => {
                                   const meta = TRANSITION_META[targetStatut];
                                   const isBusy =
@@ -2164,7 +2174,7 @@ export function SeancesPage() {
                                 <span>Détails</span>
                               </Button>
 
-                              {isSeanceModifiable(seance.statut) && (
+                              {!isPhotographe && isSeanceModifiable(seance.statut) && (
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -2180,19 +2190,21 @@ export function SeancesPage() {
                                 </Button>
                               )}
 
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="xs"
-                                onClick={() => setSeanceToDelete(seance)}
-                                title="Supprimer la séance"
-                                className="cursor-pointer gap-1 h-8 min-w-8 sm:h-6 sm:min-w-0"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span className="sr-only sm:not-sr-only">
-                                  Supprimer
-                                </span>
-                              </Button>
+                              {!isPhotographe && (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="xs"
+                                  onClick={() => setSeanceToDelete(seance)}
+                                  title="Supprimer la séance"
+                                  className="cursor-pointer gap-1 h-8 min-w-8 sm:h-6 sm:min-w-0"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span className="sr-only sm:not-sr-only">
+                                    Supprimer
+                                  </span>
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2419,6 +2431,7 @@ export function SeancesPage() {
                     </div>
 
                     {/* Bloc 3 : Facture éventuelle */}
+                    {!isPhotographe && (
                     <div className="p-4 rounded-xl border border-border bg-card space-y-2.5">
                       {(() => {
                         const facture = resolveFactureForSeance(
@@ -2540,8 +2553,10 @@ export function SeancesPage() {
                         );
                       })()}
                     </div>
+                    )}
 
                     {/* Bloc 4 : Changement de statut (uniquement les transitions possibles) */}
+                    {!isPhotographe && (
                     <div className="p-4 rounded-xl border border-border bg-card space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -2630,11 +2645,12 @@ export function SeancesPage() {
                         );
                       })()}
                     </div>
+                    )}
                   </>
                 )}
 
                 <div className="flex flex-col-reverse gap-2 pt-2 border-t border-border sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                  {seanceDetail ? (
+                  {seanceDetail && !isPhotographe ? (
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                       {seanceDetail.statut === "TERMINEE" &&
                         !resolveFactureForSeance(seanceDetail, facturesApi) && (

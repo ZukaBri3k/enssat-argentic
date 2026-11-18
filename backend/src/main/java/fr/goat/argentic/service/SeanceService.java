@@ -11,6 +11,7 @@ import fr.goat.argentic.model.*;
 import fr.goat.argentic.repository.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +43,23 @@ public class SeanceService {
                 .toList();
     }
 
+    public List<SeanceResponse> getSeancesPourPhotographe(String emailPhotographe, LocalDate du, LocalDate au, Long idClient, StatutSeance statutSeance) {
+        Photographe photographe = photographeRepository.findByEmailIgnoreCase(emailPhotographe)
+                .orElseThrow(() -> new ResourceNotFoundException("Photographe introuvable pour le compte : " + emailPhotographe));
+        return getSeance(du, au, photographe.getId(), idClient, statutSeance);
+    }
+
     public SeanceResponse getSeanceById(Long idSeance) {
         Seance seance = trouverSeance(idSeance);
+        Facture facture = factureRepository.findBySeanceId(idSeance).orElse(null);
+        return SeanceResponse.fromEntity(seance, facture);
+    }
+
+    public SeanceResponse getSeanceByIdPourPhotographe(Long idSeance, String emailPhotographe) {
+        Seance seance = trouverSeance(idSeance);
+        if (!seance.getPhotographe().getEmail().equalsIgnoreCase(emailPhotographe)) {
+            throw new AccessDeniedException("Vous ne pouvez consulter que vos propres séances");
+        }
         Facture facture = factureRepository.findBySeanceId(idSeance).orElse(null);
         return SeanceResponse.fromEntity(seance, facture);
     }

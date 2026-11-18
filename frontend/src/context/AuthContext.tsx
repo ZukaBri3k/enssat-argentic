@@ -14,7 +14,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, motDePasse: string) => Promise<void>;
+  login: (email: string, motDePasse: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadUser();
   }, [token]);
 
-  const login = async (email: string, motDePasse: string) => {
+  const login = async (email: string, motDePasse: string): Promise<User> => {
     setIsLoading(true);
     try {
       const response = await apiLogin(email, motDePasse);
@@ -70,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(response.token);
       const currentUser = await apiGetMe(response.token);
       setUser(currentUser);
+      return currentUser;
     } finally {
       setIsLoading(false);
     }

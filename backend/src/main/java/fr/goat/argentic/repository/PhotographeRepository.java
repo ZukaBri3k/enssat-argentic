@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PhotographeRepository extends JpaRepository<Photographe, Long> {
 
@@ -14,6 +15,8 @@ public interface PhotographeRepository extends JpaRepository<Photographe, Long> 
 
     @EntityGraph(attributePaths = "specialites")
     List<Photographe> findByActifOrderByNomAsc(boolean actif);
+
+    Optional<Photographe> findByEmailIgnoreCase(String email);
 
     boolean existsByEmailIgnoreCase(String email);
 

@@ -14,6 +14,7 @@ interface ProtectedRouteProps {
 export function hasRequiredRole(userRole: Role, requiredRole?: Role): boolean {
   if (!requiredRole) return true;
   if (userRole === "GESTIONNAIRE") return true; // GESTIONNAIRE possède aussi tous les droits de SECRETAIRE
+  if (userRole === "SECRETAIRE") return requiredRole === "SECRETAIRE";
   return userRole === requiredRole;
 }
 
@@ -54,13 +55,15 @@ export function ProtectedRoute({ requiredRole, children }: ProtectedRouteProps) 
             </CardDescription>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            Seul un gestionnaire peut consulter les statistiques du studio.
+            {user.role === "PHOTOGRAPHE"
+              ? "Votre compte photographe donne accès uniquement à votre calendrier de séances."
+              : "Seul un gestionnaire peut consulter les statistiques du studio."}
           </CardContent>
           <CardFooter>
-            <Link to="/photographes" className="w-full">
+            <Link to={user.role === "PHOTOGRAPHE" ? "/seances" : "/photographes"} className="w-full">
               <Button variant="outline" className="w-full flex items-center gap-2 cursor-pointer">
                 <ArrowLeft className="w-4 h-4" />
-                Retour aux photographes
+                {user.role === "PHOTOGRAPHE" ? "Retour à mon planning" : "Retour aux photographes"}
               </Button>
             </Link>
           </CardFooter>

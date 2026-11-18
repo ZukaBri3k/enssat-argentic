@@ -1,7 +1,7 @@
 import "./App.css";
 import { BrowserRouter, Navigate, useLocation } from "@/lib/router";
 import { ToastProvider } from "@/components/shared/ToastProvider";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/shared/ProtectedRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LoginPage } from "@/pages/LoginPage";
@@ -11,6 +11,13 @@ import { SeancesPage } from "@/pages/SeancesPage";
 import { FacturesPage } from "@/pages/FacturesPage";
 import { StatistiquesPage } from "@/pages/StatistiquesPage";
 
+function DefaultHomeRedirect() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+  return <Navigate to={user.role === "PHOTOGRAPHE" ? "/seances" : "/photographes"} replace />;
+}
+
 function AppRoutes() {
   const { pathname } = useLocation();
 
@@ -19,12 +26,12 @@ function AppRoutes() {
   }
 
   if (pathname === "/") {
-    return <Navigate to="/photographes" replace />;
+    return <DefaultHomeRedirect />;
   }
 
   if (pathname === "/photographes") {
     return (
-      <ProtectedRoute>
+      <ProtectedRoute requiredRole="SECRETAIRE">
         <AppLayout>
           <PhotographesPage />
         </AppLayout>
@@ -34,7 +41,7 @@ function AppRoutes() {
 
   if (pathname === "/clients") {
     return (
-      <ProtectedRoute>
+      <ProtectedRoute requiredRole="SECRETAIRE">
         <AppLayout>
           <ClientsPage />
         </AppLayout>
@@ -54,7 +61,7 @@ function AppRoutes() {
 
   if (pathname === "/factures" || pathname.startsWith("/factures/")) {
     return (
-      <ProtectedRoute>
+      <ProtectedRoute requiredRole="SECRETAIRE">
         <AppLayout>
           <FacturesPage />
         </AppLayout>
@@ -74,7 +81,7 @@ function AppRoutes() {
     );
   }
 
-  return <Navigate to="/photographes" replace />;
+  return <DefaultHomeRedirect />;
 }
 
 function App() {
