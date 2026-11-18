@@ -1,5 +1,6 @@
 package fr.goat.argentic.controller;
 
+import fr.goat.argentic.dto.FacturePdf;
 import fr.goat.argentic.dto.FactureRequest;
 import fr.goat.argentic.dto.FactureResponse;
 import fr.goat.argentic.dto.PaiementFactureRequest;
@@ -16,21 +17,26 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -262,6 +268,44 @@ class FactureControllerTest {
         mockMvc.perform(post("/factures/999/annulation"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    @DisplayName("GET /factures/{id}/pdf renvoie 200, application/pdf et Content-Disposition avec le numéro de facture")
+    void telechargerFacturePdf_existante_doitRetourner200AvecPdfEtContentDisposition() throws Exception {
+        byte[] fakePdf = "%PDF-1.4 contenu test".getBytes(StandardCharsets.UTF_8);
+        FacturePdf facturePdf = new FacturePdf("FAC-2026-0001", "FAC-2026-0001.pdf", fakePdf);
+
+        when(factureService.genererFacturePdf(42L)).thenReturn(facturePdf);
+
+        mockMvc.perform(get("/factures/42/pdf"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("attachment")))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("FAC-2026-0001.pdf")))
+                .andExpect(content().bytes(fakePdf));
+    }
+
+    @Test
+    @DisplayName("GET /factures/{id}/pdf renvoie 404 en ProblemDetail si la facture est introuvable")
+    void telechargerFacturePdf_inexistante_doitRetourner404() throws Exception {
+        when(factureService.genererFacturePdf(999L))
+                .thenThrow(new ResourceNotFoundException("Facture non trouvée avec l'id : 999"));
+
+        mockMvc.perform(get("/factures/999/pdf"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.detail").value("Facture non trouvée avec l'id : 999"));
+    }
+
+    @Test
+    @DisplayName("GET /factures/{id}/pdf renvoie 400 en ProblemDetail si l'identifiant est invalide")
+    void telechargerFacturePdf_idInvalide_doitRetourner400() throws Exception {
+        mockMvc.perform(get("/factures/abc/pdf"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
+        verifyNoInteractions(factureService);
     }
 
     private FactureResponse factureAvecStatut(StatutPaiement statut, LocalDate datePaiement) {
