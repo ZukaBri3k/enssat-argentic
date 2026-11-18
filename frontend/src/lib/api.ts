@@ -629,3 +629,138 @@ export async function apiEnregistrerPaiementFacture(
 export async function apiAnnulerFacture(id: number): Promise<FactureResponse> {
   return api.post<FactureResponse>(`/factures/${id}/annulation`);
 }
+
+/**
+ * Extrait le nom du fichier depuis l'en-tête HTTP Content-Disposition (RFC 6266 / RFC 5987)
+ */
+export function extractFilenameFromContentDisposition(
+  contentDisposition: string | null,
+  fallback: string
+): string {
+  if (!contentDisposition) return fallback;
+
+  // Format RFC 5987: filename*=UTF-8''nom_fichier.pdf
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match && utf8Match[1]) {
+    try {
+      const decoded = decodeURIComponent(utf8Match[1].trim());
+      if (decoded) return decoded;
+    } catch {
+      // Échec de décodage, continuer vers format standard
+    }
+  }
+
+  // Format standard: filename="nom_fichier.pdf" ou filename=nom_fichier.pdf
+  const standardMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  if (standardMatch && standardMatch[1]) {
+    const candidate = standardMatch[1].trim();
+    if (candidate) return candidate;
+  }
+
+  return fallback;
+}
+
+/**
+ * Déclenche le téléchargement d'un Blob dans le navigateur
+ */
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const blobUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+export interface FacturePdfDownloadResult {
+  blob: Blob;
+  filename: string;
+}
+
+/**
+ * Télécharge le PDF d'une facture via une requête authentifiée (GET /factures/{id}/pdf)
+ * et déclenche automatiquement l'enregistrement du fichier (Blob) côté client.
+ * En cas d'erreur backend (404, 401, 403, 500...), l'erreur est renvoyée en ApiError avec ProblemDetail.
+ */
+export async function apiDownloadFacturePdf(
+  id: number,
+  fallbackNumero?: string
+): Promise<FacturePdfDownloadResult> {
+  const token = getStoredToken();
+  const headers = new Headers();
+  headers.set("Accept", "application/pdf, application/problem+json");
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const path = `/factures/${id}/pdf`;
+  const url = path.startsWith("http")
+    ? path
+    : `${API_URL}${path.startsWith("/") ? path : `/${path}`}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "GET",
+      headers,
+    });
+  } catch {
+    throw new ApiError(
+      0,
+      "Le service est momentanément indisponible. Vérifiez votre connexion puis réessayez."
+    );
+  }
+
+  if (!response.ok) {
+    let problem: ProblemDetail | undefined;
+    try {
+      problem = (await response.json()) as ProblemDetail;
+    } catch {
+      // Corps non-JSON
+    }
+
+    const sessionExpiree = response.status === 401;
+    if (sessionExpiree) {
+      clearStoredToken();
+      if (unauthorizedListener) {
+        unauthorizedListener();
+      }
+    }
+
+    let message = problem?.detail || "Impossible de télécharger la facture.";
+    if (sessionExpiree) {
+      message = "Votre session a expiré. Veuillez vous reconnecter.";
+    } else if (response.status === 404) {
+      message = problem?.detail || "La facture demandée n'existe pas ou a été supprimée.";
+    } else if (response.status === 403) {
+      message = problem?.detail || "Vous n'avez pas l'autorisation de télécharger cette facture.";
+    } else if (response.status >= 500) {
+      message = "Une erreur inattendue est survenue lors de la génération du PDF. Veuillez réessayer.";
+    }
+
+    throw new ApiError(
+      response.status,
+      message,
+      problem,
+      sessionExpiree ? "Session expirée" : titreErreur(response.status)
+    );
+  }
+
+  const blob = await response.blob();
+  const rawNumero = fallbackNumero ? fallbackNumero.trim() : "";
+  const defaultFilename = rawNumero
+    ? (rawNumero.toLowerCase().endsWith(".pdf") ? rawNumero : `${rawNumero}.pdf`)
+    : `facture-${id}.pdf`;
+
+  const contentDisposition = response.headers.get("Content-Disposition");
+  const extractedFilename = extractFilenameFromContentDisposition(contentDisposition, defaultFilename);
+  const finalFilename = extractedFilename.toLowerCase().endsWith(".pdf")
+    ? extractedFilename
+    : `${extractedFilename}.pdf`;
+
+  triggerBlobDownload(blob, finalFilename);
+
+  return { blob, filename: finalFilename };
+}

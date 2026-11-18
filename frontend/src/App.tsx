@@ -52,7 +52,7 @@ function AppRoutes() {
     );
   }
 
-  if (pathname === "/factures") {
+  if (pathname === "/factures" || pathname.startsWith("/factures/")) {
     return (
       <ProtectedRoute>
         <AppLayout>

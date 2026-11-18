@@ -1,5 +1,6 @@
 package fr.goat.argentic.controller;
 
+import fr.goat.argentic.dto.FacturePdf;
 import fr.goat.argentic.dto.FactureRequest;
 import fr.goat.argentic.dto.FactureResponse;
 import fr.goat.argentic.dto.PaiementFactureRequest;
@@ -7,6 +8,7 @@ import fr.goat.argentic.model.StatutPaiement;
 import fr.goat.argentic.service.FactureService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -14,7 +16,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -97,6 +102,37 @@ public class FactureController {
             @PathVariable("id") Long id
     ) {
         return ResponseEntity.ok(factureService.getFactureById(id));
+    }
+
+    @GetMapping(value = "/factures/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @Operation(
+            summary = "Télécharger la facture au format PDF",
+            description = "Génère et retourne le document PDF de la facture uniquement à partir de ses données figées "
+                    + "(numéro, date d'émission, coordonnées client, détail de la prestation, montants HT/TVA/TTC et statut de paiement). "
+                    + "L'en-tête Content-Disposition contient le numéro de la facture."
+    )
+    @ApiResponse(
+            responseCode = "200",
+            description = "Document PDF de la facture",
+            headers = @Header(name = HttpHeaders.CONTENT_DISPOSITION, description = "attachment; filename=\"FAC-YYYY-NNNN.pdf\""),
+            content = @Content(mediaType = MediaType.APPLICATION_PDF_VALUE, schema = @Schema(type = "string", format = "binary"))
+    )
+    @ApiResponse(responseCode = "400", description = "Identifiant invalide",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "404", description = "Facture introuvable",
+            content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+    public ResponseEntity<byte[]> telechargerFacturePdf(
+            @Parameter(description = "Identifiant de la facture", example = "1")
+            @PathVariable("id") Long id
+    ) {
+        FacturePdf pdf = factureService.genererFacturePdf(id);
+        ContentDisposition contentDisposition = ContentDisposition.attachment()
+                .filename(pdf.filename())
+                .build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                .body(pdf.content());
     }
 
     @PostMapping("/factures/{id}/paiement")
