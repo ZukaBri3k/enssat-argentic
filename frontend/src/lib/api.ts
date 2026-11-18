@@ -5,11 +5,12 @@ export const API_URL =
     : "http://localhost:8080");
 export const TOKEN_KEY = "argentic_token";
 
-export type Role = "SECRETAIRE" | "GESTIONNAIRE";
+export type Role = "SECRETAIRE" | "GESTIONNAIRE" | "PHOTOGRAPHE";
 
 export const ROLE_LABELS: Record<Role, string> = {
   SECRETAIRE: "Secrétaire",
   GESTIONNAIRE: "Gestionnaire",
+  PHOTOGRAPHE: "Photographe",
 };
 
 export const TYPE_CLIENT_LABELS: Record<TypeClient, string> = {
@@ -53,6 +54,7 @@ export interface PhotographeRequest {
   nom: string;
   email: string;
   specialiteIds: number[];
+  motDePasse?: string;
 }
 
 export type StatutSeance = "PLANIFIEE" | "CONFIRMEE" | "TERMINEE" | "ANNULEE";

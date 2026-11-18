@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 
 export function LoginPage() {
-  const { isAuthenticated, login, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, login, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { success } = useToast();
 
@@ -35,7 +35,7 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (isAuthenticated) {
-    return <Navigate to="/photographes" replace />;
+    return <Navigate to={user?.role === "PHOTOGRAPHE" ? "/seances" : "/photographes"} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,9 +49,9 @@ export function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      await login(email.trim(), motDePasse);
+      const loggedUser = await login(email.trim(), motDePasse);
       success("Connexion réussie", `Bienvenue sur Studio Argentic (${email.trim()})`);
-      navigate("/photographes", { replace: true });
+      navigate(loggedUser.role === "PHOTOGRAPHE" ? "/seances" : "/photographes", { replace: true });
     } catch (err: unknown) {
       setError(err);
     } finally {
@@ -142,7 +142,7 @@ export function LoginPage() {
                   <div className="text-xs text-muted-foreground mb-2">
                     <span>Connexion rapide :</span>
                   </div>
-                  <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -164,6 +164,17 @@ export function LoginPage() {
                     >
                       <span className="font-semibold text-foreground">Gestionnaire</span>
                       <span className="text-[11px] text-muted-foreground truncate max-w-full">gestionnaire@argentic.fr</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full min-w-0 text-xs cursor-pointer flex flex-col items-start py-2 h-auto"
+                      onClick={() => fillCredentials("camille.martin@argentic.fr", "photographe")}
+                      disabled={isSubmitting || authLoading}
+                    >
+                      <span className="font-semibold text-foreground">Photographe</span>
+                      <span className="text-[11px] text-muted-foreground truncate max-w-full">camille.martin@argentic.fr</span>
                     </Button>
                   </div>
                 </div>

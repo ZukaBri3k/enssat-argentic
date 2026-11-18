@@ -15,6 +15,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -48,8 +49,14 @@ public class SeanceController {
             @Parameter(description = "Client", example = "1")
             @RequestParam(required = false) Long idClient,
             @Parameter(description = "Statut", example = "PLANIFIEE")
-            @RequestParam(required = false) StatutSeance statutSeance
+            @RequestParam(required = false) StatutSeance statutSeance,
+            Authentication authentication
     ) {
+        if (estPhotographe(authentication)) {
+            return ResponseEntity.ok(
+                    seanceService.getSeancesPourPhotographe(authentication.getName(), du, au, idClient, statutSeance)
+            );
+        }
         return ResponseEntity.ok(seanceService.getSeance(du, au, idPhotographe, idClient, statutSeance));
     }
 
@@ -65,9 +72,18 @@ public class SeanceController {
             content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<SeanceResponse> getSeanceById(
             @Parameter(description = "Identifiant de la séance", example = "1")
-            @PathVariable("id") Long idSeance
+            @PathVariable("id") Long idSeance,
+            Authentication authentication
     ) {
+        if (estPhotographe(authentication)) {
+            return ResponseEntity.ok(seanceService.getSeanceByIdPourPhotographe(idSeance, authentication.getName()));
+        }
         return ResponseEntity.ok(seanceService.getSeanceById(idSeance));
+    }
+
+    private boolean estPhotographe(Authentication authentication) {
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_PHOTOGRAPHE".equals(a.getAuthority()));
     }
 
     @PatchMapping("/{id}/statut")

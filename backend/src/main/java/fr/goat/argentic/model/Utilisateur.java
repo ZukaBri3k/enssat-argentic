@@ -29,7 +29,7 @@ public class Utilisateur {
     private String motDePasse;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20)")
     private Role role;
 
     public Utilisateur(String email, String motDePasse, Role role) {

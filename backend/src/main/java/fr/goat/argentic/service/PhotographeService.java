@@ -7,13 +7,17 @@ import fr.goat.argentic.exception.DonneeInvalideException;
 import fr.goat.argentic.exception.RegleMetierException;
 import fr.goat.argentic.exception.ResourceNotFoundException;
 import fr.goat.argentic.model.Photographe;
+import fr.goat.argentic.model.Role;
 import fr.goat.argentic.model.Seance;
 import fr.goat.argentic.model.Specialite;
 import fr.goat.argentic.model.StatutSeance;
+import fr.goat.argentic.model.Utilisateur;
 import fr.goat.argentic.repository.PhotographeRepository;
 import fr.goat.argentic.repository.SeanceRepository;
 import fr.goat.argentic.repository.SpecialiteRepository;
+import fr.goat.argentic.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +36,8 @@ public class PhotographeService {
     private final PhotographeRepository photographeRepository;
     private final SpecialiteRepository specialiteRepository;
     private final SeanceRepository seanceRepository;
+    private final UtilisateurRepository utilisateurRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional(readOnly = true)
     public List<PhotographeResponse> findAll(Boolean actif) {
@@ -54,8 +60,20 @@ public class PhotographeService {
             throw emailDejaUtilise(request.email());
         }
         Set<Specialite> specialites = chargerSpecialites(request.specialiteIds());
-        Photographe photographe = new Photographe(request.nom(), request.email(), specialites);
-        return PhotographeResponse.fromEntity(photographeRepository.save(photographe));
+        Photographe photographe = photographeRepository.save(
+                new Photographe(request.nom(), request.email(), specialites)
+        );
+        if (request.motDePasse() != null && !request.motDePasse().isBlank()) {
+            if (utilisateurRepository.findByEmail(request.email()).isPresent()) {
+                throw new RegleMetierException("Un compte utilisateur existe déjà avec l'adresse email " + request.email());
+            }
+            utilisateurRepository.save(new Utilisateur(
+                    request.email(),
+                    passwordEncoder.encode(request.motDePasse()),
+                    Role.PHOTOGRAPHE
+            ));
+        }
+        return PhotographeResponse.fromEntity(photographe);
     }
 
     @Transactional

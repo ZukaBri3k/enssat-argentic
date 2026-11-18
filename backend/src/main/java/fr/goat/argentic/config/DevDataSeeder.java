@@ -22,7 +22,7 @@ import fr.goat.argentic.repository.UtilisateurRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,7 +47,6 @@ import static fr.goat.argentic.model.StatutSeance.TERMINEE;
  */
 @Slf4j
 @Component
-@Profile("dev")
 @RequiredArgsConstructor
 public class DevDataSeeder implements CommandLineRunner {
 
@@ -60,6 +59,7 @@ public class DevDataSeeder implements CommandLineRunner {
     private final FactureRepository factureRepository;
     private final UtilisateurRepository utilisateurRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JdbcTemplate jdbcTemplate;
 
     private final Map<Integer, Integer> compteursFactureParAnnee = new HashMap<>();
     private LocalDate aujourdhui;
@@ -67,8 +67,15 @@ public class DevDataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
+        try {
+            jdbcTemplate.execute("ALTER TABLE utilisateur MODIFY COLUMN role VARCHAR(20) NOT NULL");
+        } catch (Exception e) {
+            log.debug("Migration colonne utilisateur.role ignorée : {}", e.getMessage());
+        }
+
         if (specialiteRepository.count() > 0) {
-            log.info("Base déjà peuplée : seed ignoré");
+            photographeRepository.findAll().forEach(p -> ensureComptePhotographe(p.getEmail()));
+            log.info("Base déjà peuplée : comptes photographes synchronisés");
             return;
         }
         aujourdhui = LocalDate.now();
@@ -151,7 +158,19 @@ public class DevDataSeeder implements CommandLineRunner {
     }
 
     private Photographe photographe(String nom, String email, Specialite... specialites) {
+        ensureComptePhotographe(email);
         return photographeRepository.save(new Photographe(nom, email, Set.of(specialites)));
+    }
+
+    private void ensureComptePhotographe(String email) {
+        Utilisateur user = utilisateurRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            utilisateurRepository.save(new Utilisateur(email, passwordEncoder.encode("photographe"), Role.PHOTOGRAPHE));
+        } else {
+            user.setMotDePasse(passwordEncoder.encode("photographe"));
+            user.setRole(Role.PHOTOGRAPHE);
+            utilisateurRepository.save(user);
+        }
     }
 
     private Seance seance(Photographe photographe, Client client, Specialite specialite, int decalageJours,

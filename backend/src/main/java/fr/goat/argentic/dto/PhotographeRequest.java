@@ -19,6 +19,12 @@ public record PhotographeRequest(
         String email,
 
         @NotEmpty(message = "Au moins une spécialité est requise")
-        Set<@NotNull Long> specialiteIds
+        Set<@NotNull Long> specialiteIds,
+
+        @Size(min = 4, max = 100, message = "Le mot de passe doit contenir entre 4 et 100 caractères")
+        String motDePasse
 ) {
+    public PhotographeRequest(String nom, String email, Set<Long> specialiteIds) {
+        this(nom, email, specialiteIds, null);
+    }
 }
